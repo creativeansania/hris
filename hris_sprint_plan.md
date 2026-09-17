@@ -81,15 +81,15 @@
 - Halaman review GPS attendance (HR)
 
 **Acceptance Criteria:**
-- [ ] Karyawan bisa clock-in dari halaman app
-- [ ] Dalam radius → status `auto_valid`, tanpa approval
-- [ ] Di luar radius → status `pending_review`, notifikasi ke HR
-- [ ] GPS dimatikan → error message, tidak bisa submit
-- [ ] Akurasi > 100m → ditolak dengan pesan
-- [ ] HR bisa review dan approve/reject attendance pending
-- [ ] Log lengkap (koordinat, akurasi, device info) tersimpan
+- [x] Karyawan bisa clock-in dari halaman app (/clock-in)
+- [x] Dalam radius → status `auto_valid`, tanpa approval
+- [x] Di luar radius → status `pending_review`, wajib isi catatan dinas luar
+- [x] GPS dimatikan → error message, tidak bisa submit
+- [x] Akurasi > 100m → ditolak dengan pesan
+- [x] HR bisa review dan approve/reject attendance pending di /attendance-management
+- [x] Log lengkap (koordinat, akurasi, device info) tersimpan
 
-**Deliverable:** karyawan bisa clock-in manual dari cabang manapun yang terdaftar, otomatis diterima jika dalam radius.
+**Deliverable:** karyawan bisa clock-in manual dari cabang manapun yang terdaftar, otomatis diterima jika dalam radius. Status: COMPLETED.
 
 ---
 

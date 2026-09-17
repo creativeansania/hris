@@ -45,6 +45,12 @@ export const NAVIGATION_ITEMS = [
     roles: ['admin', 'management', 'hr', 'kepala_divisi', 'spv', 'staff'] as EmployeeRole[],
   },
   {
+    title: 'Clock In / Out (GPS)',
+    href: '/clock-in',
+    icon: 'MapPin',
+    roles: ['staff', 'spv', 'kepala_divisi', 'hr', 'management', 'admin'] as EmployeeRole[],
+  },
+  {
     title: 'Presensi Saya',
     href: '/my-attendance',
     icon: 'Clock',

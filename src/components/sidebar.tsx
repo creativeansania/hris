@@ -15,12 +15,14 @@ import {
   Sliders,
   X,
   ShieldCheck,
+  MapPin,
 } from 'lucide-react';
 import { NAVIGATION_ITEMS } from '@/lib/constants';
 import { EmployeeRole } from '@/types/database';
 
 const iconMap: Record<string, React.ElementType> = {
   LayoutDashboard,
+  MapPin,
   Clock,
   CalendarDays,
   CheckSquare,

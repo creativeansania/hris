@@ -358,7 +358,7 @@ export async function getAttendanceManagement(filters: {
       .from('attendance')
       .select(`
         *,
-        employee:employees(
+        employee:employees!attendance_employee_id_fkey(
           id,
           full_name,
           email,
