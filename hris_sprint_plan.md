@@ -103,14 +103,14 @@
 - Koreksi data absensi (HR) via `attendance_corrections`
 
 **Acceptance Criteria:**
-- [ ] Setelah import fingerprint, karyawan yang telat mendapat notifikasi
-- [ ] Karyawan bisa isi alasan telat (tanpa approval, hanya dokumentasi)
-- [ ] Izin telat hanya bisa diajukan sebelum jam masuk sesuai jadwal kerja karyawan
-- [ ] Izin telat yang approved → telat aktual hari itu tidak masuk akumulasi sanksi
-- [ ] Akumulasi keterlambatan per bulan terlihat di dashboard karyawan & HR
-- [ ] HR bisa koreksi data absensi (data asli tetap tersimpan)
+- [x] Setelah import fingerprint / presensi, karyawan yang telat mendapat rekap & form klarifikasi
+- [x] Karyawan bisa isi alasan telat (tanpa approval, hanya dokumentasi)
+- [x] Izin telat hanya bisa diajukan sebelum jam masuk sesuai jadwal kerja karyawan
+- [x] Izin telat yang approved → telat aktual hari itu tidak masuk akumulasi sanksi (status Excused)
+- [x] Akumulasi keterlambatan per bulan terlihat di dashboard karyawan & HR
+- [x] HR bisa koreksi data absensi (data asli tetap tersimpan di attendance_corrections)
 
-**Deliverable:** dua jalur telat berjalan sesuai bedanya, akumulasi terlihat, koreksi bisa dilakukan.
+**Deliverable:** dua jalur telat berjalan sesuai bedanya, akumulasi terlihat, koreksi bisa dilakukan. Status: COMPLETED.
 
 ---
 
