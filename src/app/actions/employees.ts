@@ -1,0 +1,280 @@
+'use server';
+
+import { createAdminClient } from '@/lib/supabase/admin';
+import { createClient } from '@/lib/supabase/server';
+import { revalidatePath } from 'next/cache';
+import {
+  Employee,
+  EmployeeRole,
+  EmployeeStatus,
+  GenderType,
+  MaritalStatusType,
+} from '@/types/database';
+
+function getClient() {
+  try {
+    return createAdminClient();
+  } catch {
+    return null;
+  }
+}
+
+export interface GetEmployeesFilter {
+  search?: string;
+  role?: EmployeeRole | 'all';
+  divisionId?: string | 'all';
+  status?: EmployeeStatus | 'all';
+}
+
+export async function getEmployees(
+  filter: GetEmployeesFilter = {}
+): Promise<{ data: Employee[]; error: string | null }> {
+  try {
+    const client = getClient() || (await createClient());
+
+    let query = client
+      .from('employees')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (filter.role && filter.role !== 'all') {
+      query = query.eq('role', filter.role);
+    }
+
+    if (filter.divisionId && filter.divisionId !== 'all') {
+      query = query.eq('division_id', filter.divisionId);
+    }
+
+    if (filter.status && filter.status !== 'all') {
+      query = query.eq('status', filter.status);
+    }
+
+    if (filter.search && filter.search.trim()) {
+      const s = filter.search.trim();
+      query = query.or(`full_name.ilike.%${s}%,email.ilike.%${s}%,nik.ilike.%${s}%`);
+    }
+
+    const { data: rawEmployees, error } = await query;
+
+    if (error) return { data: [], error: error.message };
+
+    // Fetch related divisions and spv data in bulk
+    const divisionIds = Array.from(new Set((rawEmployees || []).map((e) => e.division_id).filter(Boolean)));
+    const spvIds = Array.from(new Set((rawEmployees || []).map((e) => e.spv_id).filter(Boolean)));
+
+    let divisionsMap: Record<string, { id: string; name: string }> = {};
+    if (divisionIds.length > 0) {
+      const { data: divs } = await client.from('divisions').select('id, name').in('id', divisionIds);
+      if (divs) divs.forEach((d) => { divisionsMap[d.id] = d; });
+    }
+
+    let spvMap: Record<string, { id: string; full_name: string; email: string }> = {};
+    if (spvIds.length > 0) {
+      const { data: spvs } = await client.from('employees').select('id, full_name, email').in('id', spvIds);
+      if (spvs) spvs.forEach((s) => { spvMap[s.id] = s; });
+    }
+
+    const merged = (rawEmployees || []).map((e) => ({
+      ...e,
+      division: e.division_id ? divisionsMap[e.division_id] || null : null,
+      spv: e.spv_id ? spvMap[e.spv_id] || null : null,
+    }));
+
+    return { data: merged as Employee[], error: null };
+  } catch (err: unknown) {
+    return { data: [], error: err instanceof Error ? err.message : 'Gagal mengambil data karyawan' };
+  }
+}
+
+export async function getEmployeeById(id: string): Promise<{ data: Employee | null; error: string | null }> {
+  try {
+    const client = getClient() || (await createClient());
+    const { data, error } = await client
+      .from('employees')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) return { data: null, error: error.message };
+    return { data: data as Employee, error: null };
+  } catch (err: unknown) {
+    return { data: null, error: err instanceof Error ? err.message : 'Gagal mengambil detail karyawan' };
+  }
+}
+
+export interface EmployeeFormData {
+  full_name: string;
+  email: string;
+  phone_number?: string | null;
+  nik?: string | null;
+  npwp?: string | null;
+  gender?: GenderType | null;
+  place_of_birth?: string | null;
+  birth_date?: string | null;
+  religion?: string | null;
+  marital_status?: MaritalStatusType | null;
+  dependents_count?: number;
+  address?: string | null;
+
+  // Emergency contact
+  emergency_contact_name?: string | null;
+  emergency_contact_phone?: string | null;
+
+  // Bank
+  bank_name?: string | null;
+  bank_account_no?: string | null;
+  bank_account_name?: string | null;
+
+  // Organization mapping
+  role: EmployeeRole;
+  division_id?: string | null;
+  spv_id?: string | null;
+  work_schedule_id?: string | null;
+  fingerprint_ac_no?: string | null;
+  join_date?: string | null;
+  status?: EmployeeStatus;
+}
+
+export async function createEmployee(formData: EmployeeFormData) {
+  try {
+    const client = getClient() || (await createClient());
+
+    // Check duplicate email
+    const { data: existing } = await client
+      .from('employees')
+      .select('id')
+      .ilike('email', formData.email.trim())
+      .maybeSingle();
+
+    if (existing) {
+      return { success: false, error: 'Email ini sudah terdaftar untuk karyawan lain.' };
+    }
+
+    const insertPayload = {
+      full_name: formData.full_name.trim(),
+      email: formData.email.trim().toLowerCase(),
+      phone_number: formData.phone_number?.trim() || null,
+      nik: formData.nik?.trim() || null,
+      npwp: formData.npwp?.trim() || null,
+      gender: formData.gender || null,
+      place_of_birth: formData.place_of_birth?.trim() || null,
+      birth_date: formData.birth_date || null,
+      religion: formData.religion?.trim() || null,
+      marital_status: formData.marital_status || null,
+      dependents_count: formData.dependents_count || 0,
+      address: formData.address?.trim() || null,
+
+      emergency_contact_name: formData.emergency_contact_name?.trim() || null,
+      emergency_contact_phone: formData.emergency_contact_phone?.trim() || null,
+
+      bank_name: formData.bank_name?.trim() || null,
+      bank_account_no: formData.bank_account_no?.trim() || null,
+      bank_account_name: formData.bank_account_name?.trim() || null,
+
+      role: formData.role || 'staff',
+      division_id: formData.division_id || null,
+      spv_id: formData.spv_id || null,
+      work_schedule_id: formData.work_schedule_id || null,
+      fingerprint_ac_no: formData.fingerprint_ac_no?.trim() || null,
+      join_date: formData.join_date || new Date().toISOString().split('T')[0],
+      status: 'pending_claim' as EmployeeStatus,
+    };
+
+    const { data: newEmp, error: insertError } = await client
+      .from('employees')
+      .insert(insertPayload)
+      .select('id')
+      .single();
+
+    if (insertError || !newEmp) {
+      return { success: false, error: insertError?.message || 'Gagal menyimpan data karyawan' };
+    }
+
+    // Auto-create initial leave balance for the current year
+    try {
+      const currentYear = new Date().getFullYear();
+      await client.from('leave_balances').insert({
+        employee_id: newEmp.id,
+        year: currentYear,
+        initial_quota: 12,
+        used_quota: 0,
+        remaining_quota: 12,
+        expired_at: `${currentYear}-12-31`,
+      });
+    } catch {
+      // Ignore if leave_balances trigger already handles it
+    }
+
+    revalidatePath('/employees');
+    return { success: true, error: null, id: newEmp.id };
+  } catch (err: unknown) {
+    return { success: false, error: err instanceof Error ? err.message : 'Terjadi kesalahan sistem' };
+  }
+}
+
+export async function updateEmployee(id: string, formData: EmployeeFormData) {
+  try {
+    const client = getClient() || (await createClient());
+
+    const updatePayload = {
+      full_name: formData.full_name.trim(),
+      email: formData.email.trim().toLowerCase(),
+      phone_number: formData.phone_number?.trim() || null,
+      nik: formData.nik?.trim() || null,
+      npwp: formData.npwp?.trim() || null,
+      gender: formData.gender || null,
+      place_of_birth: formData.place_of_birth?.trim() || null,
+      birth_date: formData.birth_date || null,
+      religion: formData.religion?.trim() || null,
+      marital_status: formData.marital_status || null,
+      dependents_count: formData.dependents_count || 0,
+      address: formData.address?.trim() || null,
+
+      emergency_contact_name: formData.emergency_contact_name?.trim() || null,
+      emergency_contact_phone: formData.emergency_contact_phone?.trim() || null,
+
+      bank_name: formData.bank_name?.trim() || null,
+      bank_account_no: formData.bank_account_no?.trim() || null,
+      bank_account_name: formData.bank_account_name?.trim() || null,
+
+      role: formData.role,
+      division_id: formData.division_id || null,
+      spv_id: formData.spv_id || null,
+      work_schedule_id: formData.work_schedule_id || null,
+      fingerprint_ac_no: formData.fingerprint_ac_no?.trim() || null,
+      join_date: formData.join_date || null,
+      status: formData.status || undefined,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error: updateError } = await client
+      .from('employees')
+      .update(updatePayload)
+      .eq('id', id);
+
+    if (updateError) {
+      return { success: false, error: updateError.message };
+    }
+
+    revalidatePath('/employees');
+    return { success: true, error: null };
+  } catch (err: unknown) {
+    return { success: false, error: err instanceof Error ? err.message : 'Gagal memperbarui data karyawan' };
+  }
+}
+
+export async function setEmployeeStatus(id: string, status: EmployeeStatus) {
+  try {
+    const client = getClient() || (await createClient());
+    const { error } = await client
+      .from('employees')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('id', id);
+
+    if (error) return { success: false, error: error.message };
+    revalidatePath('/employees');
+    return { success: true, error: null };
+  } catch (err: unknown) {
+    return { success: false, error: err instanceof Error ? err.message : 'Gagal mengubah status' };
+  }
+}
