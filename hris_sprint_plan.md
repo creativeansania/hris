@@ -59,14 +59,15 @@
 - Audit log: catat setiap import batch
 
 **Acceptance Criteria:**
-- [ ] HR bisa upload file Excel/CSV fingerprint
-- [ ] Preview menampilkan data dengan highlight: matched (hijau), unmatched (merah), duplikat (kuning)
-- [ ] Setelah confirm, data masuk tabel `attendance` dengan `source = fingerprint`
-- [ ] Staff bisa melihat riwayat absensi miliknya sendiri
-- [ ] HR bisa melihat riwayat absensi semua karyawan (filter divisi/karyawan/periode)
-- [ ] Import tercatat di audit_logs
+- [x] HR bisa upload file Excel/CSV fingerprint
+- [x] Preview menampilkan data dengan highlight: matched (hijau), unmatched (merah), duplikat (kuning)
+- [x] Setelah confirm, data masuk tabel `attendance` dengan `source = fingerprint`
+- [x] Staff bisa melihat riwayat absensi miliknya sendiri
+- [x] HR bisa melihat riwayat absensi semua karyawan (filter divisi/karyawan/periode)
+- [x] Import tercatat di audit_logs & attendance_import_batches
+- [x] Alasan keterlambatan dapat diisi langsung oleh karyawan di halaman Presensi Saya
 
-**Deliverable:** HR upload file fingerprint, data absensi karyawan langsung muncul di sistem.
+**Deliverable:** HR upload file fingerprint, data absensi karyawan langsung muncul di sistem. Status: COMPLETED.
 
 ---
 
