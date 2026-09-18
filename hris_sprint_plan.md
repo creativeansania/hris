@@ -206,13 +206,13 @@
 - Mapping payload ke model Odoo (menunggu konfirmasi nama tabel/model dari user)
 
 **Acceptance Criteria:**
-- [ ] Data attendance/leave/payroll yang baru otomatis masuk outbox
-- [ ] HR bisa lihat preview data yang akan di-sync
-- [ ] HR bisa klik sync, data ter-push ke Odoo
-- [ ] Riwayat sync menampilkan status (berhasil/gagal/retry count)
-- [ ] Gagal sync bisa di-retry (max 3x)
+- [x] Data attendance/leave/payroll yang baru otomatis masuk outbox
+- [x] HR bisa lihat preview data yang akan di-sync
+- [x] HR bisa klik sync, data ter-push ke Odoo
+- [x] Riwayat sync menampilkan status (berhasil/gagal/retry count)
+- [x] Gagal sync bisa di-retry (max 3x)
 
-**Deliverable:** HR bisa klik satu tombol, data ter-push ke Odoo, ada riwayatnya.
+**Deliverable:** HR bisa klik satu tombol, data ter-push ke Odoo, ada riwayatnya. (COMPLETED)
 
 ---
 

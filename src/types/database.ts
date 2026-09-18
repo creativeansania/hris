@@ -310,3 +310,33 @@ export interface LeaveBalance {
   request_type?: RequestType | null;
 }
 
+export type OdooSyncStatus = 'pending' | 'synced' | 'failed';
+
+export interface OdooSyncOutboxItem {
+  id: string;
+  entity_type: string; // 'attendance' | 'leave' | 'overtime' | 'employee'
+  entity_id: string;
+  odoo_model: string | null;
+  payload_json: Record<string, any>;
+  status: OdooSyncStatus;
+  retry_count: number;
+  max_retries: number;
+  next_retry_at: string | null;
+  synced_by: string | null;
+  synced_at: string | null;
+  odoo_response_json: Record<string, any> | null;
+  error_message: string | null;
+  created_at: string;
+  // joined fields
+  employee?: {
+    id: string;
+    full_name: string;
+    nik: string;
+    email: string;
+  } | null;
+  synced_by_user?: {
+    id: string;
+    full_name: string;
+  } | null;
+}
+

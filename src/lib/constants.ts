@@ -87,6 +87,12 @@ export const NAVIGATION_ITEMS = [
     roles: ['hr', 'admin', 'management'] as EmployeeRole[],
   },
   {
+    title: 'Integrasi Odoo',
+    href: '/odoo-sync',
+    icon: 'RefreshCw',
+    roles: ['hr', 'admin'] as EmployeeRole[],
+  },
+  {
     title: 'Payroll',
     href: '/payroll',
     icon: 'Receipt',

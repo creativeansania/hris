@@ -17,6 +17,7 @@ import {
   ShieldCheck,
   MapPin,
   Briefcase,
+  RefreshCw,
 } from 'lucide-react';
 import { NAVIGATION_ITEMS } from '@/lib/constants';
 import { EmployeeRole } from '@/types/database';
@@ -30,6 +31,7 @@ const iconMap: Record<string, React.ElementType> = {
   Briefcase,
   Fingerprint,
   Users,
+  RefreshCw,
   Receipt,
   Sliders,
 };
