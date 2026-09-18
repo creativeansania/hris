@@ -71,11 +71,11 @@ export default function RequestTypesPage() {
     setEditingType(t);
     setFormName(t.name);
     setFormCategory(t.category);
-    setFormDefaultDays(t.default_days?.toString() || '');
-    setFormIsHalfDay(t.is_half_day);
+    setFormDefaultDays(t.default_days?.toString() || t.default_duration_days?.toString() || '');
+    setFormIsHalfDay(t.is_half_day ?? false);
     setFormRequiresAttachment(t.requires_attachment);
     setFormMandatoryAfterDays(t.attachment_mandatory_after_days?.toString() || '');
-    setFormDeductsAnnualLeave(t.deducts_annual_leave);
+    setFormDeductsAnnualLeave(t.deducts_annual_leave ?? t.deducts_leave_quota ?? false);
     setFormGender(t.gender_restriction || '');
     setFormMarital(t.marital_status_restriction || '');
     setFormMinServiceDays((t.min_service_days || 0).toString());

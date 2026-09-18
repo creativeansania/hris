@@ -66,7 +66,7 @@ export const NAVIGATION_ITEMS = [
     title: 'Approval Pengajuan',
     href: '/approvals',
     icon: 'CheckSquare',
-    roles: ['spv', 'kepala_divisi', 'hr', 'admin'] as EmployeeRole[],
+    roles: ['spv', 'kepala_divisi', 'hr', 'management', 'admin'] as EmployeeRole[],
   },
   {
     title: 'Manajemen Presensi',

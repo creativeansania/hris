@@ -129,18 +129,18 @@
 - Validasi `deducts_leave_quota` — hanya kurangi saldo jika flag true
 
 **Acceptance Criteria:**
-- [ ] Form pengajuan menampilkan jenis cuti/izin dari `request_types` (hanya `is_active = true`)
-- [ ] Upload multi-file berfungsi (validasi format, ukuran, max file count)
-- [ ] Jenis yang `requires_attachment = true` wajib upload sebelum submit
-- [ ] Request di-route ke approver yang benar sesuai hierarki
-- [ ] Approval paralel: kedua approver harus approve → request approved
-- [ ] Salah satu reject → request rejected (dengan catatan)
-- [ ] Saldo cuti berkurang otomatis setelah approved (hanya jika `deducts_leave_quota = true`)
-- [ ] Cuti khusus tidak mengurangi kuota cuti tahunan
-- [ ] Karyawan bisa cancel request yang masih pending
-- [ ] HR bisa manual adjust saldo cuti (adjustment +/-)
+- [x] Form pengajuan menampilkan jenis cuti/izin dari `request_types` (hanya `is_active = true`)
+- [x] Upload multi-file berfungsi (validasi format, ukuran, max file count)
+- [x] Jenis yang `requires_attachment = true` wajib upload sebelum submit
+- [x] Request di-route ke approver yang benar sesuai hierarki
+- [x] Approval paralel: kedua approver harus approve → request approved
+- [x] Salah satu reject → request rejected (dengan catatan)
+- [x] Saldo cuti berkurang otomatis setelah approved (hanya jika `deducts_leave_quota = true`)
+- [x] Cuti khusus tidak mengurangi kuota cuti tahunan
+- [x] Karyawan bisa cancel request yang masih pending
+- [x] HR bisa manual adjust saldo cuti (adjustment +/-)
 
-**Deliverable:** staff bisa ajukan cuti/izin, atasan+HR bisa approve, saldo cuti otomatis terupdate.
+**Deliverable:** staff bisa ajukan cuti/izin, atasan+HR bisa approve, saldo cuti otomatis terupdate. Status: COMPLETED.
 
 ---
 

@@ -100,14 +100,16 @@ export interface RequestType {
   code: string;
   name: string;
   category: RequestCategory;
-  default_days: number | null;
-  is_half_day: boolean;
+  default_duration_days?: number | null;
+  default_days?: number | null;
+  is_half_day?: boolean;
   requires_attachment: boolean;
-  attachment_mandatory_after_days: number | null;
-  deducts_annual_leave: boolean;
-  gender_restriction: GenderType | null;
-  marital_status_restriction: MaritalStatusType | null;
-  min_service_days: number;
+  attachment_mandatory_after_days?: number | null;
+  deducts_leave_quota?: boolean;
+  deducts_annual_leave?: boolean;
+  gender_restriction?: GenderType | null;
+  marital_status_restriction?: MaritalStatusType | null;
+  min_service_days?: number;
   description: string | null;
   is_active: boolean;
   sort_order: number;
@@ -174,3 +176,98 @@ export interface SystemSetting {
   created_at: string;
   updated_at: string;
 }
+
+export interface RequestAttachment {
+  id: string;
+  request_id: string;
+  file_name: string;
+  file_url: string;
+  file_size_bytes: number | null;
+  mime_type: string | null;
+  uploaded_at: string;
+}
+
+export interface RequestApproval {
+  id: string;
+  request_id: string;
+  approver_id: string;
+  approver_role: EmployeeRole;
+  decision: ApprovalDecision;
+  note: string | null;
+  decided_at: string | null;
+  created_at: string;
+  // joined fields
+  approver?: {
+    id: string;
+    full_name: string;
+    email: string;
+    role: EmployeeRole;
+    photo_url?: string | null;
+  } | null;
+}
+
+export interface RequestItem {
+  id: string;
+  request_type_id: string;
+  employee_id: string;
+  created_by: string;
+  start_date: string;
+  end_date: string | null;
+  start_time: string | null;
+  end_time: string | null;
+  total_days: number | null;
+  reason: string;
+  status: RequestStatus;
+  submitted_at: string;
+  decided_at: string | null;
+  cancelled_by: string | null;
+  cancelled_at: string | null;
+  cancel_reason: string | null;
+  created_at: string;
+  // joined fields
+  employee?: {
+    id: string;
+    full_name: string;
+    email: string;
+    role: EmployeeRole;
+    photo_url?: string | null;
+    division?: {
+      id: string;
+      name: string;
+    } | null;
+  } | null;
+  created_by_user?: {
+    id: string;
+    full_name: string;
+    role: EmployeeRole;
+  } | null;
+  request_type?: RequestType | null;
+  approvals?: RequestApproval[];
+  attachments?: RequestAttachment[];
+}
+
+export interface LeaveBalance {
+  id: string;
+  employee_id: string;
+  year: number;
+  request_type_id: string;
+  quota: number;
+  used: number;
+  adjustment: number;
+  carry_over: number;
+  created_at: string;
+  updated_at: string;
+  // virtual / joined fields
+  remaining?: number;
+  employee?: {
+    id: string;
+    full_name: string;
+    email: string;
+    role: EmployeeRole;
+    division?: {
+      name: string;
+    } | null;
+  } | null;
+  request_type?: RequestType | null;
+}
+
