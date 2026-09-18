@@ -165,6 +165,45 @@ export interface Employee {
     email: string;
   } | null;
   work_schedule?: WorkScheduleGroup | null;
+  contracts?: EmployeeContract[];
+  positions?: EmployeePosition[];
+}
+
+export interface EmployeeContract {
+  id: string;
+  employee_id: string;
+  contract_type: ContractType;
+  start_date: string;
+  end_date: string | null;
+  base_salary: number;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  // joined fields
+  created_by_user?: {
+    id: string;
+    full_name: string;
+  } | null;
+  days_remaining?: number | null;
+  status_urgency?: 'critical' | 'warning' | 'safe' | 'permanent' | 'expired';
+}
+
+export interface EmployeePosition {
+  id: string;
+  employee_id: string;
+  division_id: string | null;
+  position_title: string | null;
+  start_date: string;
+  end_date: string | null;
+  created_by: string | null;
+  created_at: string;
+  // joined fields
+  division?: Division | null;
+  created_by_user?: {
+    id: string;
+    full_name: string;
+  } | null;
 }
 
 export interface SystemSetting {

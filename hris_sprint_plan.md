@@ -172,12 +172,12 @@
 - Halaman profil karyawan lengkap (data pribadi, kontrak, jabatan, absensi, cuti)
 
 **Acceptance Criteria:**
-- [ ] HR bisa input/edit kontrak kerja (histori tersimpan)
-- [ ] HR bisa input/edit riwayat mutasi jabatan
-- [ ] Notifikasi muncul saat kontrak PKWT H-30 dan H-7
-- [ ] Halaman profil menampilkan semua data karyawan secara terpusat
+- [x] HR bisa input/edit kontrak kerja (histori tersimpan)
+- [x] HR bisa input/edit riwayat mutasi jabatan
+- [x] Notifikasi muncul saat kontrak PKWT H-30 dan H-7
+- [x] Halaman profil menampilkan semua data karyawan secara terpusat
 
-**Deliverable:** HR bisa kelola data kontrak, dapat notifikasi kontrak mau habis.
+**Deliverable:** HR bisa kelola data kontrak, dapat notifikasi kontrak mau habis. (COMPLETED)
 
 ---
 
