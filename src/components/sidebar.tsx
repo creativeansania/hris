@@ -16,6 +16,7 @@ import {
   X,
   ShieldCheck,
   MapPin,
+  Briefcase,
 } from 'lucide-react';
 import { NAVIGATION_ITEMS } from '@/lib/constants';
 import { EmployeeRole } from '@/types/database';
@@ -26,6 +27,7 @@ const iconMap: Record<string, React.ElementType> = {
   Clock,
   CalendarDays,
   CheckSquare,
+  Briefcase,
   Fingerprint,
   Users,
   Receipt,

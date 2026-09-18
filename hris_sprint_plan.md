@@ -153,14 +153,14 @@
 - Halaman riwayat lembur (staff lihat, atasan kelola)
 
 **Acceptance Criteria:**
-- [ ] SPV bisa buat lembur untuk staff di bawahnya
-- [ ] Kadiv bisa buat lembur untuk SPV di divisinya
-- [ ] Staff **tidak bisa** self-request lembur (form tidak muncul)
-- [ ] Auto-skip approval jika creator = approver
-- [ ] Approval flow berjalan sama dengan cuti/izin
-- [ ] Staff bisa lihat riwayat penugasan lembur
+- [x] SPV bisa buat lembur untuk staff di bawahnya
+- [x] Kadiv bisa buat lembur untuk SPV di divisinya
+- [x] Staff **tidak bisa** self-request lembur (form tidak muncul)
+- [x] Auto-skip approval jika creator = approver
+- [x] Approval flow berjalan sama dengan cuti/izin
+- [x] Staff bisa lihat riwayat penugasan lembur
 
-**Deliverable:** SPV bikin lembur untuk staff, approval jalan, staff bisa lihat.
+**Deliverable:** SPV bikin lembur untuk staff, approval jalan, staff bisa lihat. Status: COMPLETED.
 
 ---
 

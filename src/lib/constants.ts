@@ -69,6 +69,12 @@ export const NAVIGATION_ITEMS = [
     roles: ['spv', 'kepala_divisi', 'hr', 'management', 'admin'] as EmployeeRole[],
   },
   {
+    title: 'Lembur',
+    href: '/overtime',
+    icon: 'Briefcase',
+    roles: ['staff', 'spv', 'kepala_divisi', 'hr', 'management', 'admin'] as EmployeeRole[],
+  },
+  {
     title: 'Manajemen Presensi',
     href: '/attendance-management',
     icon: 'Fingerprint',
