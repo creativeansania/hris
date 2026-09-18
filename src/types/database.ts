@@ -340,3 +340,76 @@ export interface OdooSyncOutboxItem {
   } | null;
 }
 
+export type PayrollPeriodStatus = 'draft' | 'generated' | 'finalized';
+
+export interface PayrollRule {
+  id: string;
+  rule_key: string;
+  rule_value: string;
+  value_type: 'number' | 'percentage' | 'formula';
+  description: string | null;
+  is_active: boolean;
+  updated_by: string | null;
+  updated_at: string;
+}
+
+export interface PayrollPeriod {
+  id: string;
+  period_start: string;
+  period_end: string;
+  status: PayrollPeriodStatus;
+  generated_by: string | null;
+  generated_at: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
+  notes: string | null;
+  created_at: string;
+  // joined fields
+  generated_by_user?: {
+    id: string;
+    full_name: string;
+  } | null;
+  approved_by_user?: {
+    id: string;
+    full_name: string;
+  } | null;
+  runs_count?: number;
+  total_net_pay?: number;
+}
+
+export interface PayrollRun {
+  id: string;
+  payroll_period_id: string;
+  employee_id: string;
+  base_salary: number;
+  total_allowance: number;
+  overtime_pay: number;
+  bpjs_kesehatan_deduction: number;
+  bpjs_ketenagakerjaan_deduction: number;
+  pph21_deduction: number;
+  late_deduction: number;
+  absence_deduction: number;
+  other_deduction: number;
+  gross_pay: number;
+  net_pay: number;
+  breakdown_json: Record<string, any> | null;
+  notes: string | null;
+  created_at: string;
+  // joined fields
+  employee?: {
+    id: string;
+    nik: string;
+    full_name: string;
+    email: string;
+    role: EmployeeRole;
+    bank_name?: string | null;
+    bank_account_no?: string | null;
+    bank_account_name?: string | null;
+    division?: {
+      id: string;
+      name: string;
+    } | null;
+  } | null;
+  payroll_period?: PayrollPeriod | null;
+}
+

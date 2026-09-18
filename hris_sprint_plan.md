@@ -225,15 +225,15 @@
 - Slip gaji (view staff)
 
 **Acceptance Criteria:**
-- [ ] Management bisa input/edit payroll rules
-- [ ] Management bisa generate payroll per periode
-- [ ] Perhitungan otomatis: base, tunjangan, lembur, BPJS, PPh21, sanksi
-- [ ] Management bisa review breakdown per karyawan
-- [ ] Management bisa finalize (lock, tidak bisa diubah)
-- [ ] Staff bisa lihat slip gaji sendiri
-- [ ] Payroll yang di-finalize masuk audit_logs
+- [x] Management bisa input/edit payroll rules
+- [x] Management bisa generate payroll per periode
+- [x] Perhitungan otomatis: base, tunjangan, lembur, BPJS, PPh21, sanksi
+- [x] Management bisa review breakdown per karyawan
+- [x] Management bisa finalize (lock, tidak bisa diubah)
+- [x] Staff bisa lihat slip gaji sendiri
+- [x] Payroll yang di-finalize masuk audit_logs
 
-**Deliverable:** Management bisa generate payroll, staff lihat slip gaji.
+**Deliverable:** Management bisa generate payroll, staff lihat slip gaji. (COMPLETED)
 
 ---
 
