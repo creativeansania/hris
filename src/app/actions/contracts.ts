@@ -473,7 +473,7 @@ export async function getEmployeeFullProfile(employeeId: string): Promise<{
       getEmployeeLeaveBalance(employeeId),
       client
         .from('attendance')
-        .select('attendance_date, status, late_minutes, linked_izin_telat_request_id')
+        .select('attendance_date, clock_in, late_minutes, is_absent, linked_izin_telat_request_id')
         .eq('employee_id', employeeId)
         .gte(
           'attendance_date',
@@ -485,7 +485,7 @@ export async function getEmployeeFullProfile(employeeId: string): Promise<{
 
     const attList = attRes.data || [];
     const presentDays = attList.filter(
-      (a: any) => a.status === 'present' || a.status === 'late'
+      (a: any) => !a.is_absent && a.clock_in != null
     ).length;
     const lateMinutes = attList.reduce(
       (acc: number, curr: any) => acc + (Number(curr.late_minutes) || 0),

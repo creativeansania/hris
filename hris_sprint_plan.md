@@ -189,12 +189,12 @@
 - Export ke Excel (opsional, nice-to-have)
 
 **Acceptance Criteria:**
-- [ ] Dashboard HR menampilkan rekap kehadiran, cuti, lembur, keterlambatan
-- [ ] Dashboard Management menampilkan rekap + placeholder payroll cost
-- [ ] Filter by periode, divisi, karyawan berfungsi
-- [ ] Data sesuai RLS (HR lihat semua, SPV lihat timnya, dll)
+- [x] Dashboard HR menampilkan rekap kehadiran, cuti, lembur, keterlambatan
+- [x] Dashboard Management menampilkan rekap + placeholder payroll cost
+- [x] Filter by periode, divisi, karyawan berfungsi
+- [x] Data sesuai RLS (HR lihat semua, SPV lihat timnya, dll)
 
-**Deliverable:** dashboard reporting untuk kedua role siap dipakai.
+**Deliverable:** dashboard reporting untuk kedua role siap dipakai. (COMPLETED)
 
 ---
 
