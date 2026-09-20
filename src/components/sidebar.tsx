@@ -19,6 +19,7 @@ import {
   Briefcase,
   RefreshCw,
   Bell,
+  ClipboardCheck,
 } from 'lucide-react';
 import { NAVIGATION_ITEMS } from '@/lib/constants';
 import { EmployeeRole } from '@/types/database';
@@ -36,6 +37,7 @@ const iconMap: Record<string, React.ElementType> = {
   Receipt,
   Bell,
   Sliders,
+  ClipboardCheck,
 };
 
 interface SidebarProps {

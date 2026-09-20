@@ -312,14 +312,14 @@
 - Go-live checklist & rollback plan
 
 **Acceptance Criteria:**
-- [ ] Data existing berhasil dimigrasi (jika ada)
-- [ ] UAT passed oleh semua role (sign-off)
-- [ ] Bug kritis dari UAT sudah diperbaiki
-- [ ] Monitoring aktif (error tracking)
-- [ ] User guide tersedia (per role)
-- [ ] Go-live checklist completed
+- [x] Data existing berhasil dimigrasi (jika ada)
+- [x] UAT passed oleh semua role (sign-off)
+- [x] Bug kritis dari UAT sudah diperbaiki
+- [x] Monitoring aktif (error tracking)
+- [x] User guide tersedia (per role)
+- [x] Go-live checklist completed
 
-**Deliverable:** sistem siap dipakai produksi.
+**Deliverable:** sistem siap dipakai produksi. (COMPLETED)
 
 ---
 
