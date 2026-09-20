@@ -18,6 +18,9 @@ import {
   ArrowRight,
   LogOut,
   LogIn,
+  Database,
+  WifiOff,
+  CloudUpload,
 } from 'lucide-react';
 import {
   getTodayGpsStatus,
@@ -30,6 +33,14 @@ import {
   OfficeLocationGeo,
 } from '@/lib/geo/haversine';
 import { createClient } from '@/lib/supabase/client';
+import {
+  saveOfflineAttendance,
+  getPendingAttendanceQueue,
+  cacheMasterData,
+  getCachedMasterData,
+  OfflineAttendanceItem,
+} from '@/lib/offline-db';
+import { syncAllOfflineData } from '@/lib/sync-engine';
 
 export default function ClockInPage() {
   // Current time state
@@ -56,6 +67,11 @@ export default function ClockInPage() {
   const [attendance, setAttendance] = useState<any>(null);
   const [employee, setEmployee] = useState<any>(null);
   const [isLoadingStatus, setIsLoadingStatus] = useState<boolean>(true);
+
+  // Offline queue states
+  const [offlineQueue, setOfflineQueue] = useState<OfflineAttendanceItem[]>([]);
+  const [isOffline, setIsOffline] = useState<boolean>(false);
+  const [isSyncingQueue, setIsSyncingQueue] = useState<boolean>(false);
 
   // Clock in form state
   const [notes, setNotes] = useState<string>('');
@@ -124,37 +140,90 @@ export default function ClockInPage() {
     );
   }, [officeLocations]);
 
-  // Load initial status & locations
+  // Load pending offline queue
+  const loadOfflineQueue = useCallback(async () => {
+    try {
+      const queue = await getPendingAttendanceQueue();
+      setOfflineQueue(queue);
+    } catch (err) {
+      console.warn('[ClockIn] Error reading offline queue:', err);
+    }
+  }, []);
+
+  // Load initial status & locations (with IndexedDB fallback)
   const loadStatus = async () => {
     setIsLoadingStatus(true);
+    const online = typeof navigator !== 'undefined' ? navigator.onLine : true;
+    setIsOffline(!online);
+
     try {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      if (online) {
+        const supabase = createClient();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
 
-      const email = user?.email || 'itkantiss@gmail.com';
-      const res = await getTodayGpsStatus(email);
+        const email = user?.email || 'itkantiss@gmail.com';
+        const res = await getTodayGpsStatus(email);
 
-      if (res.officeLocations) {
-        setOfficeLocations(res.officeLocations);
-      }
-      if (res.attendance) {
-        setAttendance(res.attendance);
-      }
-      if (res.employee) {
-        setEmployee(res.employee);
+        if (res.officeLocations && res.officeLocations.length > 0) {
+          setOfficeLocations(res.officeLocations);
+          await cacheMasterData('gps_init', res);
+        }
+        if (res.attendance) {
+          setAttendance(res.attendance);
+        }
+        if (res.employee) {
+          setEmployee(res.employee);
+        }
+      } else {
+        // Offline: Read from cached master data
+        const cached = await getCachedMasterData<any>('gps_init');
+        if (cached) {
+          if (cached.officeLocations) setOfficeLocations(cached.officeLocations);
+          if (cached.employee) setEmployee(cached.employee);
+          if (cached.attendance) setAttendance(cached.attendance);
+        }
       }
     } catch (err) {
-      console.error('Error loading GPS status:', err);
+      console.warn('Network issue loading GPS status, falling back to cache:', err);
+      const cached = await getCachedMasterData<any>('gps_init');
+      if (cached) {
+        if (cached.officeLocations) setOfficeLocations(cached.officeLocations);
+        if (cached.employee) setEmployee(cached.employee);
+      }
     } finally {
       setIsLoadingStatus(false);
+      loadOfflineQueue();
     }
   };
 
   useEffect(() => {
     loadStatus();
-  }, []);
+
+    const handleOnline = () => {
+      setIsOffline(false);
+      loadStatus();
+    };
+    const handleOffline = () => setIsOffline(true);
+    const handleQueueChange = () => loadOfflineQueue();
+    const handleSyncComplete = () => {
+      loadOfflineQueue();
+      loadStatus();
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('hris-queue-changed', handleQueueChange);
+    window.addEventListener('hris-sync-completed', handleSyncComplete);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('hris-queue-changed', handleQueueChange);
+      window.removeEventListener('hris-sync-completed', handleSyncComplete);
+    };
+  }, [loadOfflineQueue]);
 
   // When locations are loaded, trigger initial geolocation
   useEffect(() => {
@@ -171,7 +240,7 @@ export default function ClockInPage() {
     }
   }, [geoCoords, officeLocations]);
 
-  // Handle Clock In
+  // Handle Clock In (with Offline Queue Fallback)
   const handleClockIn = async () => {
     if (!geoCoords) {
       setFeedback({
@@ -200,8 +269,57 @@ export default function ClockInPage() {
     setIsSubmitting(true);
     setFeedback(null);
 
+    const now = new Date();
+    const currentTimeStr = now.toLocaleTimeString('id-ID', { hour12: false });
+    const deviceInfo = `${navigator.userAgent}`;
+    const isDeviceOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+
+    // Direct Offline Submission
+    if (!isDeviceOnline) {
+      try {
+        await saveOfflineAttendance({
+          type: 'clock_in',
+          employeeEmail: employee?.email,
+          latitude: geoCoords.latitude,
+          longitude: geoCoords.longitude,
+          accuracy: geoCoords.accuracy,
+          deviceInfo,
+          notes: notes.trim(),
+          recordedAt: now.toISOString(),
+        });
+
+        setAttendance((prev: any) => ({
+          ...(prev || {}),
+          clock_in: currentTimeStr,
+          attendance_date: now.toISOString().split('T')[0],
+          review_status: closestOfficeInfo?.isWithinRadius ? 'auto_valid' : 'pending_review',
+          submitted_latitude: geoCoords.latitude,
+          submitted_longitude: geoCoords.longitude,
+          gps_accuracy_meters: geoCoords.accuracy,
+          distance_to_office_meters: closestOfficeInfo?.distanceMeters || 0,
+          late_reason: notes.trim(),
+        }));
+
+        setIsSubmitting(false);
+        setFeedback({
+          type: 'success',
+          message: `Clock In tersimpan di Antrean Offline (IndexedDB) pada pukul ${currentTimeStr}. Akan disinkronkan otomatis saat online.`,
+        });
+        loadOfflineQueue();
+        window.dispatchEvent(new CustomEvent('hris-queue-changed'));
+        return;
+      } catch (saveErr) {
+        setIsSubmitting(false);
+        setFeedback({
+          type: 'error',
+          message: 'Gagal menyimpan presensi offline ke penyimpanan perangkat.',
+        });
+        return;
+      }
+    }
+
+    // Online submission with automatic offline fallback on network failure
     try {
-      const deviceInfo = `${navigator.userAgent}`;
       const res = await submitGpsClockIn({
         employeeEmail: employee?.email,
         latitude: geoCoords.latitude,
@@ -209,6 +327,7 @@ export default function ClockInPage() {
         accuracy: geoCoords.accuracy,
         deviceInfo,
         notes: notes.trim(),
+        recordedAt: now.toISOString(),
       });
 
       setIsSubmitting(false);
@@ -228,15 +347,44 @@ export default function ClockInPage() {
         });
       }
     } catch (err: any) {
-      setIsSubmitting(false);
-      setFeedback({
-        type: 'error',
-        message: err?.message || 'Terjadi kesalahan sistem saat Clock In',
-      });
+      // Network failure mid-request: save to offline queue
+      console.warn('Network error during clock in, saving to offline queue:', err);
+      try {
+        await saveOfflineAttendance({
+          type: 'clock_in',
+          employeeEmail: employee?.email,
+          latitude: geoCoords.latitude,
+          longitude: geoCoords.longitude,
+          accuracy: geoCoords.accuracy,
+          deviceInfo,
+          notes: notes.trim(),
+          recordedAt: now.toISOString(),
+        });
+
+        setAttendance((prev: any) => ({
+          ...(prev || {}),
+          clock_in: currentTimeStr,
+          attendance_date: now.toISOString().split('T')[0],
+        }));
+
+        setIsSubmitting(false);
+        setFeedback({
+          type: 'success',
+          message: `Koneksi terputus saat submit. Presensi otomatis dialihkan dan disimpan di Antrean Offline lokal (${currentTimeStr}).`,
+        });
+        loadOfflineQueue();
+        window.dispatchEvent(new CustomEvent('hris-queue-changed'));
+      } catch {
+        setIsSubmitting(false);
+        setFeedback({
+          type: 'error',
+          message: err?.message || 'Terjadi kesalahan sistem saat Clock In',
+        });
+      }
     }
   };
 
-  // Handle Clock Out
+  // Handle Clock Out (with Offline Queue Fallback)
   const handleClockOut = async () => {
     if (!geoCoords) {
       setFeedback({
@@ -249,14 +397,55 @@ export default function ClockInPage() {
     setIsSubmitting(true);
     setFeedback(null);
 
+    const now = new Date();
+    const currentTimeStr = now.toLocaleTimeString('id-ID', { hour12: false });
+    const deviceInfo = `${navigator.userAgent}`;
+    const isDeviceOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+
+    // Direct Offline Submission
+    if (!isDeviceOnline) {
+      try {
+        await saveOfflineAttendance({
+          type: 'clock_out',
+          employeeEmail: employee?.email,
+          latitude: geoCoords.latitude,
+          longitude: geoCoords.longitude,
+          accuracy: geoCoords.accuracy,
+          deviceInfo,
+          recordedAt: now.toISOString(),
+        });
+
+        setAttendance((prev: any) => ({
+          ...prev,
+          clock_out: currentTimeStr,
+        }));
+
+        setIsSubmitting(false);
+        setFeedback({
+          type: 'success',
+          message: `Clock Out tersimpan di Antrean Offline (IndexedDB) pada pukul ${currentTimeStr}. Selamat beristirahat!`,
+        });
+        loadOfflineQueue();
+        window.dispatchEvent(new CustomEvent('hris-queue-changed'));
+        return;
+      } catch {
+        setIsSubmitting(false);
+        setFeedback({
+          type: 'error',
+          message: 'Gagal menyimpan Clock Out offline ke penyimpanan perangkat.',
+        });
+        return;
+      }
+    }
+
     try {
-      const deviceInfo = `${navigator.userAgent}`;
       const res = await submitGpsClockOut({
         employeeEmail: employee?.email,
         latitude: geoCoords.latitude,
         longitude: geoCoords.longitude,
         accuracy: geoCoords.accuracy,
         deviceInfo,
+        recordedAt: now.toISOString(),
       });
 
       setIsSubmitting(false);
@@ -278,12 +467,45 @@ export default function ClockInPage() {
         });
       }
     } catch (err: any) {
-      setIsSubmitting(false);
-      setFeedback({
-        type: 'error',
-        message: err?.message || 'Terjadi kesalahan sistem saat Clock Out',
-      });
+      console.warn('Network error during clock out, saving to offline queue:', err);
+      try {
+        await saveOfflineAttendance({
+          type: 'clock_out',
+          employeeEmail: employee?.email,
+          latitude: geoCoords.latitude,
+          longitude: geoCoords.longitude,
+          accuracy: geoCoords.accuracy,
+          deviceInfo,
+          recordedAt: now.toISOString(),
+        });
+
+        setAttendance((prev: any) => ({
+          ...prev,
+          clock_out: currentTimeStr,
+        }));
+
+        setIsSubmitting(false);
+        setFeedback({
+          type: 'success',
+          message: `Koneksi terputus saat submit. Clock Out otomatis dialihkan dan disimpan di Antrean Offline (${currentTimeStr}).`,
+        });
+        loadOfflineQueue();
+        window.dispatchEvent(new CustomEvent('hris-queue-changed'));
+      } catch {
+        setIsSubmitting(false);
+        setFeedback({
+          type: 'error',
+          message: err?.message || 'Terjadi kesalahan sistem saat Clock Out',
+        });
+      }
     }
+  };
+
+  const handleManualQueueSync = async () => {
+    setIsSyncingQueue(true);
+    await syncAllOfflineData();
+    setIsSyncingQueue(false);
+    loadOfflineQueue();
   };
 
   const presetReasons = [
@@ -689,6 +911,58 @@ export default function ClockInPage() {
                 {attendance.late_reason || '-'}
               </span>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Offline Queue Section */}
+      {offlineQueue.length > 0 && (
+        <div className="p-5 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-3 text-xs animate-in fade-in">
+          <div className="flex items-center justify-between border-b border-amber-500/20 pb-2.5">
+            <div className="flex items-center gap-2">
+              <Database className="w-4 h-4 text-amber-400" />
+              <span className="font-bold text-amber-300">
+                Antrean Presensi Offline ({offlineQueue.length})
+              </span>
+            </div>
+
+            <button
+              onClick={handleManualQueueSync}
+              disabled={isSyncingQueue || isOffline}
+              className="px-3 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/40 text-[11px] font-semibold flex items-center gap-1.5 transition disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3 h-3 ${isSyncingQueue ? 'animate-spin' : ''}`} />
+              <span>{isSyncingQueue ? 'Menyinkronkan...' : isOffline ? 'Tersimpan Offline' : 'Sinkronkan Sekarang'}</span>
+            </button>
+          </div>
+
+          <div className="divide-y divide-amber-500/10">
+            {offlineQueue.map((item) => (
+              <div key={item.id} className="py-2 flex items-center justify-between font-mono text-[11px]">
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                      item.type === 'clock_in'
+                        ? 'bg-blue-500/20 text-blue-300'
+                        : 'bg-amber-500/20 text-amber-300'
+                    }`}
+                  >
+                    {item.type === 'clock_in' ? 'Clock In' : 'Clock Out'}
+                  </span>
+                  <span className="text-slate-300">
+                    {new Date(item.recordedAt).toLocaleTimeString('id-ID', { hour12: false })}
+                  </span>
+                  <span className="text-slate-500 text-[10px]">
+                    (±{Math.round(item.accuracy)}m)
+                  </span>
+                </div>
+                <div className="text-right">
+                  <span className="text-amber-400 text-[10px]">
+                    {item.status === 'syncing' ? 'Sedang kirim...' : 'Menunggu koneksi online'}
+                  </span>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}

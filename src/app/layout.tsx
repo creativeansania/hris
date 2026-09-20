@@ -38,6 +38,8 @@ export const viewport: Viewport = {
   userScalable: false,
 };
 
+import { PwaRegister } from "@/components/pwa-register";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -46,6 +48,7 @@ export default function RootLayout({
   return (
     <html lang="id" className={`${plusJakarta.variable} ${jetbrainsMono.variable} dark h-full`}>
       <body className="min-h-full flex flex-col font-sans bg-[#0b0f19] text-slate-100 antialiased selection:bg-blue-600 selection:text-white">
+        <PwaRegister />
         {children}
       </body>
     </html>

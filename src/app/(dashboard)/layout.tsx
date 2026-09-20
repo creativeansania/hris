@@ -5,7 +5,10 @@ import { Sidebar } from '@/components/sidebar';
 import { Topbar } from '@/components/topbar';
 import { EmployeeRole } from '@/types/database';
 import { createClient } from '@/lib/supabase/client';
-import { AlertTriangle, Database, ArrowUpRight } from 'lucide-react';
+import { AlertTriangle, Database, ArrowUpRight, ShieldAlert } from 'lucide-react';
+
+import { OfflineBanner } from '@/components/offline-banner';
+import { PwaInstallPrompt } from '@/components/pwa-install-prompt';
 
 export default function DashboardLayout({
   children,
@@ -17,6 +20,22 @@ export default function DashboardLayout({
   const [userEmail, setUserEmail] = useState<string>('admin@hris.internal');
   const [userRole, setUserRole] = useState<EmployeeRole>('admin');
   const [isPlaceholderEnv, setIsPlaceholderEnv] = useState(false);
+  const [unauthorizedWarning, setUnauthorizedWarning] = useState<{
+    show: boolean;
+    deniedRoute?: string;
+  }>({ show: false });
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('error') === 'unauthorized') {
+        setUnauthorizedWarning({
+          show: true,
+          deniedRoute: params.get('deniedRoute') || 'halaman tersebut',
+        });
+      }
+    }
+  }, []);
 
   useEffect(() => {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -69,6 +88,30 @@ export default function DashboardLayout({
           userRole={userRole}
           onMobileMenuToggle={() => setIsMobileOpen(!isMobileOpen)}
         />
+
+        {/* Global Offline Status & Queue Banner */}
+        <OfflineBanner />
+
+        {/* PWA Floating Install Prompt */}
+        <PwaInstallPrompt />
+
+        {/* Unauthorized Access Banner (RBAC Security) */}
+        {unauthorizedWarning.show && (
+          <div className="bg-rose-500/10 border-b border-rose-500/20 px-4 py-2.5 flex items-center justify-between text-xs text-rose-300 animate-in slide-in-from-top-1">
+            <div className="flex items-center gap-2">
+              <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0" />
+              <span>
+                <strong>Akses Ditolak:</strong> Peran Anda ({userRole}) tidak memiliki otoritas untuk mengakses <code className="bg-rose-500/20 px-1 py-0.5 rounded text-rose-200">{unauthorizedWarning.deniedRoute}</code>. Pembatasan ini ditegakkan oleh RBAC Security Middleware.
+              </span>
+            </div>
+            <button
+              onClick={() => setUnauthorizedWarning({ show: false })}
+              className="text-rose-400 hover:text-white px-2 py-0.5 text-xs font-bold"
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
         {/* Database Config Banner (if using placeholder credentials) */}
         {isPlaceholderEnv && (

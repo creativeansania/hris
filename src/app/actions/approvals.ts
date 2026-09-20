@@ -4,6 +4,8 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { RequestItem, ApprovalDecision } from '@/types/database';
+import { sanitizeText } from '@/lib/security';
+import { logAuditEvent } from '@/lib/audit';
 
 function getClient() {
   try {
@@ -227,12 +229,14 @@ export async function submitApprovalDecision(payload: {
       };
     }
 
+    const cleanNote = sanitizeText(payload.note);
+
     // 3. Update the approval record
     const { error: apprUpdateErr } = await client
       .from('request_approvals')
       .update({
         decision: payload.decision,
-        note: payload.note?.trim() || null,
+        note: cleanNote || null,
         decided_at: new Date().toISOString(),
       })
       .eq('id', targetApproval.id);
@@ -267,6 +271,18 @@ export async function submitApprovalDecision(payload: {
           decided_at: new Date().toISOString(),
         })
         .eq('id', payload.requestId);
+
+      // Notify requester of rejection
+      await client.from('notifications').insert({
+        employee_id: request.employee_id,
+        type: 'request_rejected',
+        title: `Pengajuan ${request.request_type?.name || 'Cuti/Izin'} Ditolak`,
+        message: `Pengajuan Anda untuk tanggal ${request.start_date} telah ditolak. Catatan: ${payload.note?.trim() || 'Tidak ada catatan.'}`,
+        action_url: '/requests',
+        related_entity_type: 'requests',
+        related_entity_id: payload.requestId,
+        is_read: false,
+      });
     } else if (allApproved) {
       newStatus = 'approved';
       await client
@@ -276,6 +292,18 @@ export async function submitApprovalDecision(payload: {
           decided_at: new Date().toISOString(),
         })
         .eq('id', payload.requestId);
+
+      // Notify requester of approval
+      await client.from('notifications').insert({
+        employee_id: request.employee_id,
+        type: 'request_approved',
+        title: `Pengajuan ${request.request_type?.name || 'Cuti/Izin'} Disetujui`,
+        message: `Pengajuan Anda untuk tanggal ${request.start_date} telah disetujui sepenuhnya.`,
+        action_url: '/requests',
+        related_entity_type: 'requests',
+        related_entity_id: payload.requestId,
+        is_read: false,
+      });
 
       // Execute side-effects upon full approval:
       // Side-effect A: Deduct Leave Quota (if deducts_leave_quota is true)
@@ -324,6 +352,22 @@ export async function submitApprovalDecision(payload: {
           .eq('attendance_date', request.start_date);
       }
     }
+
+    // Record Audit Log
+    await logAuditEvent({
+      actorId: currentUser.id,
+      action: payload.decision === 'approved' ? 'approve_request' : 'reject_request',
+      entityType: 'requests',
+      entityId: payload.requestId,
+      changes: {
+        decision: payload.decision,
+        requestStatus: newStatus,
+      },
+      metadata: {
+        approverRole: targetApproval.approver_role,
+        note: cleanNote,
+      },
+    });
 
     revalidatePath('/approvals');
     revalidatePath('/requests');

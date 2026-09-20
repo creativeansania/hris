@@ -1,5 +1,15 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { EmployeeRole } from '@/types/database';
+
+// Route permissions definition (Role-Based Access Control)
+const RESTRICTED_ROUTES: Array<{ prefix: string; allowedRoles: EmployeeRole[] }> = [
+  { prefix: '/attendance-management', allowedRoles: ['hr', 'admin'] },
+  { prefix: '/odoo-sync', allowedRoles: ['hr', 'admin'] },
+  { prefix: '/settings', allowedRoles: ['admin', 'hr'] },
+  { prefix: '/employees', allowedRoles: ['hr', 'admin', 'management'] },
+  { prefix: '/approvals', allowedRoles: ['spv', 'kepala_divisi', 'hr', 'management', 'admin'] },
+];
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({
@@ -47,15 +57,19 @@ export async function proxy(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname;
 
-  // Protected paths
+  // Protected paths requiring authentication
   const isProtectedPath =
     pathname.startsWith('/dashboard') ||
     pathname.startsWith('/my-attendance') ||
+    pathname.startsWith('/clock-in') ||
     pathname.startsWith('/requests') ||
+    pathname.startsWith('/overtime') ||
     pathname.startsWith('/approvals') ||
     pathname.startsWith('/attendance-management') ||
     pathname.startsWith('/employees') ||
     pathname.startsWith('/payroll') ||
+    pathname.startsWith('/odoo-sync') ||
+    pathname.startsWith('/notifications') ||
     pathname.startsWith('/settings');
 
   const isDev = process.env.NODE_ENV === 'development';
@@ -68,6 +82,7 @@ export async function proxy(request: NextRequest) {
     response.cookies.set('hris_dev_mode', 'true', { path: '/', maxAge: 86400 });
   }
 
+  // 1. Authentication Check
   if (isProtectedPath && !user && !hasDevBypass) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
@@ -75,8 +90,34 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  const isAuthPath = pathname.startsWith('/login');
+  // 2. Role-Based Access Control (RBAC) Enforcement at Middleware Layer
+  if (user && !hasDevBypass) {
+    const matchingRestriction = RESTRICTED_ROUTES.find((r) =>
+      pathname.startsWith(r.prefix)
+    );
 
+    if (matchingRestriction) {
+      const { data: emp } = await supabase
+        .from('employees')
+        .select('role')
+        .eq('auth_user_id', user.id)
+        .maybeSingle();
+
+      const userRole: EmployeeRole = (emp?.role as EmployeeRole) || 'staff';
+
+      if (!matchingRestriction.allowedRoles.includes(userRole)) {
+        // Forbidden: Redirect to dashboard with unauthorized warning flag
+        const url = request.nextUrl.clone();
+        url.pathname = '/dashboard';
+        url.searchParams.set('error', 'unauthorized');
+        url.searchParams.set('deniedRoute', pathname);
+        return NextResponse.redirect(url);
+      }
+    }
+  }
+
+  // 3. Prevent logged-in users from visiting /login
+  const isAuthPath = pathname.startsWith('/login');
   if (isAuthPath && user) {
     const url = request.nextUrl.clone();
     url.pathname = '/dashboard';

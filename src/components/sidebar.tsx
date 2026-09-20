@@ -18,6 +18,7 @@ import {
   MapPin,
   Briefcase,
   RefreshCw,
+  Bell,
 } from 'lucide-react';
 import { NAVIGATION_ITEMS } from '@/lib/constants';
 import { EmployeeRole } from '@/types/database';
@@ -33,6 +34,7 @@ const iconMap: Record<string, React.ElementType> = {
   Users,
   RefreshCw,
   Receipt,
+  Bell,
   Sliders,
 };
 

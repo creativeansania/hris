@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { Badge, RoleBadge } from '@/components/ui/badge';
 import { Modal } from '@/components/ui/modal';
+import { EmptyState } from '@/components/ui/empty-state';
 import { createClient } from '@/lib/supabase/client';
 import { RequestItem, LeaveBalance, EmployeeRole } from '@/types/database';
 import {
@@ -299,21 +300,19 @@ export default function ApprovalsPage() {
               <p className="text-xs">Memuat daftar permohonan...</p>
             </div>
           ) : filteredRequests.length === 0 ? (
-            <div className="bg-[#111827] border border-slate-800/80 rounded-2xl p-12 text-center">
-              <div className="w-12 h-12 rounded-xl bg-slate-800/60 flex items-center justify-center mx-auto text-slate-400 mb-3">
-                <CheckCircle2 className="w-6 h-6 text-emerald-400" />
-              </div>
-              <h3 className="text-base font-semibold text-white">
-                {activeTab === 'pending-my'
+            <EmptyState
+              icon={CheckCircle2}
+              title={
+                activeTab === 'pending-my'
                   ? 'Semua Beres! Tidak Ada Pengajuan Menunggu'
-                  : 'Tidak Ada Data Ditemukan'}
-              </h3>
-              <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-                {activeTab === 'pending-my'
-                  ? 'Semua permohonan yang membutuhkan persetujuan Anda sudah selesai diproses.'
-                  : 'Belum ada riwayat pengajuan cuti/izin pada kategori ini.'}
-              </p>
-            </div>
+                  : 'Tidak Ada Data Ditemukan'
+              }
+              description={
+                activeTab === 'pending-my'
+                  ? 'Semua permohonan cuti, izin, dan lembur yang membutuhkan persetujuan Anda sudah selesai diproses.'
+                  : 'Belum ada riwayat permohonan pada kategori atau filter pencarian ini.'
+              }
+            />
           ) : (
             <div className="space-y-4">
               {filteredRequests.map((req) => {

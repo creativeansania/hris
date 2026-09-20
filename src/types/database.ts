@@ -413,3 +413,34 @@ export interface PayrollRun {
   payroll_period?: PayrollPeriod | null;
 }
 
+export type NotificationType =
+  | 'request_submitted'
+  | 'request_approved'
+  | 'request_rejected'
+  | 'overtime_assigned'
+  | 'attendance_late'
+  | 'attendance_late_repeat'
+  | 'contract_expiring'
+  | 'leave_quota_warning'
+  | 'odoo_sync_completed'
+  | 'payroll_generated'
+  | 'system_announcement';
+
+export interface NotificationItem {
+  id: string;
+  employee_id: string;
+  type: NotificationType | string;
+  title: string;
+  message: string | null;
+  action_url: string | null;
+  related_entity_type: string | null;
+  related_entity_id: string | null;
+  is_read: boolean;
+  created_at: string;
+  employee?: {
+    id: string;
+    full_name: string;
+    email: string;
+    role: EmployeeRole;
+  } | null;
+}

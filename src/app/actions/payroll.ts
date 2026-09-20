@@ -10,6 +10,7 @@ import {
   PayrollPeriodStatus,
   EmployeeRole,
 } from '@/types/database';
+import { logAuditEvent } from '@/lib/audit';
 
 function getClient() {
   try {
@@ -528,7 +529,43 @@ export async function generatePayrollRun(
       })
       .eq('id', periodId);
 
+    // Notify Management & Admin
+    const { data: mgmtUsers } = await client
+      .from('employees')
+      .select('id')
+      .in('role', ['management', 'admin'])
+      .eq('status', 'active');
+
+    if (mgmtUsers && mgmtUsers.length > 0) {
+      const notifs = mgmtUsers.map((m: any) => ({
+        employee_id: m.id,
+        type: 'payroll_generated',
+        title: 'Draft Penggajian Selesai Dihitung',
+        message: `Kalkulasi payroll untuk periode ${period.period_start} s/d ${period.period_end} telah selesai (${payrollRunsToUpsert.length} karyawan). Menunggu review dan finalisasi.`,
+        action_url: '/payroll',
+        related_entity_type: 'payroll_periods',
+        related_entity_id: periodId,
+        is_read: false,
+      }));
+      await client.from('notifications').insert(notifs);
+    }
+
+    // Record Audit Log
+    await logAuditEvent({
+      actorId: executor?.id || null,
+      action: 'generate_payroll',
+      entityType: 'payroll_periods',
+      entityId: periodId,
+      metadata: {
+        periodStart: period.period_start,
+        periodEnd: period.period_end,
+        generatedCount: payrollRunsToUpsert.length,
+        totalPayroll: sumTotalPayroll,
+      },
+    });
+
     revalidatePath('/payroll');
+    revalidatePath('/notifications');
 
     return {
       success: true,
@@ -562,11 +599,8 @@ export async function finalizePayrollPeriod(
     const client = getClient() || (await createClient());
     const executor = await getAuthenticatedEmployee(client, executorEmail);
 
-    if (!['management', 'admin'].includes(executor?.role || '')) {
-      return {
-        success: false,
-        message: 'Hanya Management atau Administrator yang berwenang memfinalisasi dan mengunci periode payroll.',
-      };
+    if (!executor || !['admin', 'management'].includes(executor.role)) {
+      return { success: false, message: 'Hanya Management atau Admin yang berhak memfinalisasi payroll.' };
     }
 
     const { data: period, error: pErr } = await client
@@ -596,22 +630,18 @@ export async function finalizePayrollPeriod(
 
     if (updErr) return { success: false, message: updErr.message };
 
-    // Record audit trail into audit_logs if table exists
-    try {
-      await client.from('audit_logs').insert({
-        action: 'finalize_payroll',
-        entity_type: 'payroll_periods',
-        entity_id: periodId,
-        actor_id: executor.id,
-        payload_after: {
-          period_start: period.period_start,
-          period_end: period.period_end,
-          finalized_at: now,
-        },
-      });
-    } catch {
-      // Non-blocking for audit log
-    }
+    // Record Audit Log
+    await logAuditEvent({
+      actorId: executor.id,
+      action: 'finalize_payroll',
+      entityType: 'payroll_periods',
+      entityId: periodId,
+      metadata: {
+        periodStart: period.period_start,
+        periodEnd: period.period_end,
+        finalizedAt: now,
+      },
+    });
 
     revalidatePath('/payroll');
 

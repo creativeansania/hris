@@ -4,6 +4,9 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { RequestItem, LeaveBalance, RequestType } from '@/types/database';
+import { sanitizeText, sanitizeFileName } from '@/lib/security';
+import { checkFileUploadRateLimit } from '@/lib/rate-limiter';
+import { logAuditEvent } from '@/lib/audit';
 
 function getClient() {
   try {
@@ -240,7 +243,8 @@ export async function createLeaveOrPermitRequest(formData: FormData) {
     const endDate = (formData.get('end_date') as string) || startDate;
     const startTime = (formData.get('start_time') as string) || null;
     const endTime = (formData.get('end_time') as string) || null;
-    const reason = (formData.get('reason') as string)?.trim();
+    const rawReason = formData.get('reason') as string;
+    const reason = sanitizeText(rawReason);
     const isHalfDay = formData.get('is_half_day') === 'true';
 
     if (!requestTypeId || !startDate || !reason) {
@@ -250,6 +254,12 @@ export async function createLeaveOrPermitRequest(formData: FormData) {
     const employee = await getAuthenticatedEmployee(client, employeeEmail || undefined);
     if (!employee) {
       return { success: false, error: 'Data karyawan tidak ditemukan.' };
+    }
+
+    // Rate limiting check
+    const rateLimit = checkFileUploadRateLimit(employee.id);
+    if (!rateLimit.success) {
+      return { success: false, error: rateLimit.message };
     }
 
     // 1. Lookup request type
@@ -343,8 +353,7 @@ export async function createLeaveOrPermitRequest(formData: FormData) {
 
     // 6. Upload files to Storage bucket 'leave-attachments' & insert request_attachments
     for (const file of uploadedFiles) {
-      const ext = file.name.split('.').pop()?.toLowerCase() || 'dat';
-      const cleanName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const cleanName = sanitizeFileName(file.name);
       const storagePath = `requests/${newRequest.id}/${Date.now()}_${cleanName}`;
 
       const arrayBuffer = await file.arrayBuffer();
@@ -364,7 +373,7 @@ export async function createLeaveOrPermitRequest(formData: FormData) {
 
         await client.from('request_attachments').insert({
           request_id: newRequest.id,
-          file_name: file.name,
+          file_name: cleanName,
           file_url: publicUrlData.publicUrl,
           file_size_bytes: file.size,
           mime_type: file.type,
@@ -455,6 +464,22 @@ export async function createLeaveOrPermitRequest(formData: FormData) {
       });
     }
 
+    // Dispatch notification to approvers
+    for (const approver of approvers) {
+      if (approver.id !== employee.id) {
+        await client.from('notifications').insert({
+          employee_id: approver.id,
+          type: 'request_submitted',
+          title: 'Pengajuan Baru Menunggu Persetujuan',
+          message: `${employee.full_name} mengajukan ${reqType.name} (${totalDays} hari) mulai ${startDate}.`,
+          action_url: '/approvals',
+          related_entity_type: 'requests',
+          related_entity_id: newRequest.id,
+          is_read: false,
+        });
+      }
+    }
+
     // Check if all are already auto-approved
     const { data: allApprovals } = await client
       .from('request_approvals')
@@ -490,7 +515,33 @@ export async function createLeaveOrPermitRequest(formData: FormData) {
             .eq('id', curBal.id);
         }
       }
+
+      // Notify requester of auto-approval
+      await client.from('notifications').insert({
+        employee_id: employee.id,
+        type: 'request_approved',
+        title: 'Pengajuan Anda Telah Disetujui',
+        message: `Pengajuan ${reqType.name} (${startDate}) telah disetujui secara otomatis.`,
+        action_url: '/requests',
+        related_entity_type: 'requests',
+        related_entity_id: newRequest.id,
+        is_read: false,
+      });
     }
+
+    // Record Audit Log
+    await logAuditEvent({
+      actorId: employee.id,
+      action: 'create_request',
+      entityType: 'requests',
+      entityId: newRequest.id,
+      metadata: {
+        requestType: reqType.name,
+        startDate,
+        endDate,
+        totalDays,
+      },
+    });
 
     revalidatePath('/requests');
     revalidatePath('/approvals');
@@ -602,19 +653,32 @@ export async function cancelMyRequest(
       };
     }
 
+    const cleanReason = sanitizeText(reason) || 'Dibatalkan oleh pemohon';
+
     const { error: updateErr } = await client
       .from('requests')
       .update({
         status: 'cancelled',
         cancelled_by: employee.id,
         cancelled_at: new Date().toISOString(),
-        cancel_reason: reason?.trim() || 'Dibatalkan oleh pemohon',
+        cancel_reason: cleanReason,
       })
       .eq('id', requestId);
 
     if (updateErr) {
       return { success: false, error: updateErr.message };
     }
+
+    // Record Audit Log
+    await logAuditEvent({
+      actorId: employee.id,
+      action: 'cancel_request',
+      entityType: 'requests',
+      entityId: requestId,
+      metadata: {
+        cancelReason: cleanReason,
+      },
+    });
 
     revalidatePath('/requests');
     revalidatePath('/approvals');

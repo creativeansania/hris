@@ -9,6 +9,9 @@ import {
   OfficeLocationGeo,
 } from '@/lib/geo/haversine';
 import { AttendanceReviewStatus } from '@/types/database';
+import { checkClockInRateLimit } from '@/lib/rate-limiter';
+import { sanitizeText } from '@/lib/security';
+import { logAuditEvent } from '@/lib/audit';
 
 function getClient() {
   try {
@@ -26,6 +29,7 @@ export interface GpsClockInPayload {
   deviceInfo?: string;
   notes?: string;
   isMockLocation?: boolean;
+  recordedAt?: string;
 }
 
 export interface GpsClockOutPayload {
@@ -34,6 +38,7 @@ export interface GpsClockOutPayload {
   longitude: number;
   accuracy: number;
   deviceInfo?: string;
+  recordedAt?: string;
 }
 
 export async function getTodayGpsStatus(employeeEmail?: string) {
@@ -106,7 +111,14 @@ export async function submitGpsClockIn(payload: GpsClockInPayload) {
       return { success: false, error: 'Data karyawan tidak ditemukan untuk presensi ini.' };
     }
 
-    const today = new Date().toISOString().split('T')[0];
+    // Rate Limiting Check
+    const rateLimit = checkClockInRateLimit(emp.id);
+    if (!rateLimit.success) {
+      return { success: false, error: rateLimit.message };
+    }
+
+    const punchDate = payload.recordedAt ? new Date(payload.recordedAt) : new Date();
+    const today = punchDate.toISOString().split('T')[0];
 
     // 3. Check if already clocked in today
     const { data: existing } = await client
@@ -150,20 +162,28 @@ export async function submitGpsClockIn(payload: GpsClockInPayload) {
     const isInsideRadius = closestResult.isWithinRadius;
     const reviewStatus: AttendanceReviewStatus = isInsideRadius ? 'auto_valid' : 'pending_review';
 
+    // 5. Calculate Current Time and Late Minutes
+    const now = punchDate;
+    const currentHours = String(now.getHours()).padStart(2, '0');
+    const currentMinutes = String(now.getMinutes()).padStart(2, '0');
+    const currentSeconds = String(now.getSeconds()).padStart(2, '0');
+    const currentTimeStr = `${currentHours}:${currentMinutes}:${currentSeconds}`;
+
+    // Sanitize input notes & append offline sync audit note if applicable
+    let cleanNotes = sanitizeText(payload.notes);
+    if (payload.recordedAt) {
+      const syncTimeStr = new Date().toLocaleTimeString('id-ID', { hour12: false });
+      const offlineTag = `[Sync Offline PWA: Dicatat ${currentTimeStr}, sinkronisasi online ${syncTimeStr}]`;
+      cleanNotes = cleanNotes ? `${offlineTag} ${cleanNotes}` : offlineTag;
+    }
+
     // If outside radius and no notes provided, encourage or require notes
-    if (!isInsideRadius && (!payload.notes || payload.notes.trim().length === 0)) {
+    if (!isInsideRadius && cleanNotes.length === 0) {
       return {
         success: false,
         error: `Anda berada di luar radius kantor (${closestResult.distanceMeters}m dari ${closestResult.office.name}, batas: ${closestResult.office.radius_meters}m). Wajib mencantumkan catatan tugas/kegiatan luar kantor.`,
       };
     }
-
-    // 5. Calculate Current Time and Late Minutes
-    const now = new Date();
-    const currentHours = String(now.getHours()).padStart(2, '0');
-    const currentMinutes = String(now.getMinutes()).padStart(2, '0');
-    const currentSeconds = String(now.getSeconds()).padStart(2, '0');
-    const currentTimeStr = `${currentHours}:${currentMinutes}:${currentSeconds}`;
 
     let lateMinutes = 0;
     // Check schedule for today
@@ -178,24 +198,20 @@ export async function submitGpsClockIn(payload: GpsClockInPayload) {
 
       if (scheduleDay && scheduleDay.start_time && !scheduleDay.is_day_off) {
         const [schH, schM] = scheduleDay.start_time.split(':').map(Number);
-        const [curH, curM] = [now.getHours(), now.getMinutes()];
-        const scheduledTotal = schH * 60 + schM;
-        const currentTotal = curH * 60 + curM;
-        const tolerance = scheduleDay.late_tolerance_minutes || 0;
-
-        if (currentTotal > scheduledTotal + tolerance) {
-          lateMinutes = currentTotal - scheduledTotal;
+        const schMinutes = schH * 60 + schM;
+        const curMinutes = now.getHours() * 60 + now.getMinutes();
+        if (curMinutes > schMinutes) {
+          lateMinutes = curMinutes - schMinutes;
         }
       }
     }
 
-    // 6. Insert into attendance
+    // 6. Build and Upsert Attendance Record
     const attendanceRecord = {
       employee_id: emp.id,
       attendance_date: today,
-      source: 'app_fallback' as const,
+      source: 'app_fallback',
       clock_in: currentTimeStr,
-      clock_out: null,
       late_minutes: lateMinutes,
       early_minutes: 0,
       work_minutes: 0,
@@ -206,10 +222,10 @@ export async function submitGpsClockIn(payload: GpsClockInPayload) {
       gps_accuracy_meters: payload.accuracy,
       distance_to_office_meters: closestResult.distanceMeters,
       review_status: reviewStatus,
-      device_info: payload.deviceInfo || 'Web Browser',
+      device_info: sanitizeText(payload.deviceInfo) || 'Web Browser',
       is_mock_location: payload.isMockLocation || false,
-      late_reason: payload.notes || null,
-      late_reason_filled_at: payload.notes ? now.toISOString() : null,
+      late_reason: cleanNotes || null,
+      late_reason_filled_at: cleanNotes ? now.toISOString() : null,
     };
 
     const { data: inserted, error: insertError } = await client
@@ -224,9 +240,38 @@ export async function submitGpsClockIn(payload: GpsClockInPayload) {
       return { success: false, error: `Gagal menyimpan presensi GPS: ${insertError.message}` };
     }
 
+    // Audit Logging
+    await logAuditEvent({
+      actorId: emp.id,
+      action: 'gps_clock_in',
+      entityType: 'attendance',
+      entityId: inserted.id,
+      metadata: {
+        office: closestResult.office.name,
+        distanceMeters: closestResult.distanceMeters,
+        isInsideRadius,
+        lateMinutes,
+      },
+    });
+
+    // If late, dispatch in-app notification to employee
+    if (lateMinutes > 0 && emp?.id) {
+      await client.from('notifications').insert({
+        employee_id: emp.id,
+        type: 'attendance_late',
+        title: 'Pemberitahuan Keterlambatan Presensi',
+        message: `Presensi masuk Anda tercatat terlambat ${lateMinutes} menit pada ${today}. Harap ajukan form permohonan jika keterlambatan memiliki alasan sah.`,
+        action_url: '/requests',
+        related_entity_type: 'attendance',
+        related_entity_id: inserted?.id || null,
+        is_read: false,
+      });
+    }
+
     revalidatePath('/clock-in');
     revalidatePath('/my-attendance');
     revalidatePath('/attendance-management');
+    revalidatePath('/notifications');
 
     return {
       success: true,
@@ -265,7 +310,14 @@ export async function submitGpsClockOut(payload: GpsClockOutPayload) {
       return { success: false, error: 'Data karyawan tidak ditemukan.' };
     }
 
-    const today = new Date().toISOString().split('T')[0];
+    // Rate Limiting Check
+    const rateLimit = checkClockInRateLimit(emp.id);
+    if (!rateLimit.success) {
+      return { success: false, error: rateLimit.message };
+    }
+
+    const punchDate = payload.recordedAt ? new Date(payload.recordedAt) : new Date();
+    const today = punchDate.toISOString().split('T')[0];
 
     // 2. Find today's clock in record
     const { data: attendance, error: attError } = await client
@@ -291,7 +343,7 @@ export async function submitGpsClockOut(payload: GpsClockOutPayload) {
     }
 
     // 3. Compute clock out time and work minutes
-    const now = new Date();
+    const now = punchDate;
     const currentHours = String(now.getHours()).padStart(2, '0');
     const currentMinutes = String(now.getMinutes()).padStart(2, '0');
     const currentSeconds = String(now.getSeconds()).padStart(2, '0');
@@ -314,6 +366,18 @@ export async function submitGpsClockOut(payload: GpsClockOutPayload) {
     if (updateError) {
       return { success: false, error: `Gagal memperbarui Clock Out: ${updateError.message}` };
     }
+
+    // Audit Logging
+    await logAuditEvent({
+      actorId: emp.id,
+      action: 'gps_clock_out',
+      entityType: 'attendance',
+      entityId: attendance.id,
+      metadata: {
+        workMinutes,
+        clockOutTime: currentTimeStr,
+      },
+    });
 
     revalidatePath('/clock-in');
     revalidatePath('/my-attendance');

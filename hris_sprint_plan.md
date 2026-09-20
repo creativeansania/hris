@@ -251,13 +251,13 @@
   - Akumulasi telat ≥ 4x → karyawan + HR
 
 **Acceptance Criteria:**
-- [ ] Bell icon menampilkan jumlah notifikasi unread
-- [ ] Klik bell → halaman notifikasi
-- [ ] Setiap event di matrix menghasilkan notifikasi ke penerima yang benar
-- [ ] Mark as read berfungsi (individual dan bulk)
-- [ ] Notifikasi real-time (Supabase Realtime / polling)
+- [x] Bell icon menampilkan jumlah notifikasi unread
+- [x] Klik bell → halaman notifikasi
+- [x] Setiap event di matrix menghasilkan notifikasi ke penerima yang benar
+- [x] Mark as read berfungsi (individual dan bulk)
+- [x] Notifikasi real-time (Supabase Realtime / polling)
 
-**Deliverable:** notifikasi in-app berjalan untuk semua event.
+**Deliverable:** notifikasi in-app berjalan untuk semua event. (COMPLETED)
 
 ---
 
@@ -271,13 +271,13 @@
 - Review Supabase service role usage (minimize)
 
 **Acceptance Criteria:**
-- [ ] Semua tabel dengan data personal punya RLS aktif
-- [ ] Role X tidak bisa akses data role Y (test per role)
-- [ ] Input validation berjalan di server-side
-- [ ] Rate limiting aktif di endpoint sensitif
-- [ ] Security checklist passed (manual review)
+- [x] Semua tabel dengan data personal punya RLS aktif
+- [x] Role X tidak bisa akses data role Y (test per role)
+- [x] Input validation berjalan di server-side
+- [x] Rate limiting aktif di endpoint sensitif
+- [x] Security checklist passed (manual review)
 
-**Deliverable:** keamanan sistem siap untuk production.
+**Deliverable:** keamanan sistem siap untuk production. (COMPLETED)
 
 ---
 
@@ -291,13 +291,13 @@
 - Performance optimization (lazy loading, image optimization)
 
 **Acceptance Criteria:**
-- [ ] App bisa di-install sebagai PWA
-- [ ] Form absensi/pengajuan bisa diisi saat offline → auto-submit saat online
-- [ ] Offline indicator muncul saat koneksi terputus
-- [ ] Semua halaman responsive (mobile & desktop)
-- [ ] Load time < 3 detik di koneksi 3G (Lighthouse score ≥ 80)
+- [x] App bisa di-install sebagai PWA
+- [x] Form absensi/pengajuan bisa diisi saat offline → auto-submit saat online
+- [x] Offline indicator muncul saat koneksi terputus
+- [x] Semua halaman responsive (mobile & desktop)
+- [x] Load time < 3 detik di koneksi 3G (Lighthouse score ≥ 80)
 
-**Deliverable:** PWA offline handling dan UI polish selesai.
+**Deliverable:** PWA offline handling dan UI polish selesai. (COMPLETED)
 
 ---
 

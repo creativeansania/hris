@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { OdooSyncOutboxItem, OdooSyncStatus, EmployeeRole } from '@/types/database';
+import { logAuditEvent } from '@/lib/audit';
 
 function getClient() {
   try {
@@ -492,7 +493,32 @@ export async function executeOdooSync(payload: {
       }
     }
 
+    if (executor?.id && (syncedCount > 0 || failedCount > 0)) {
+      await client.from('notifications').insert({
+        employee_id: executor.id,
+        type: 'odoo_sync_completed',
+        title: 'Sinkronisasi Odoo Selesai',
+        message: `Proses sinkronisasi data ke Odoo ERP selesai. ${syncedCount} berhasil disinkronkan, ${failedCount} gagal.`,
+        action_url: '/odoo-sync',
+        related_entity_type: 'odoo_sync_outbox',
+        is_read: false,
+      });
+    }
+
+    // Record Audit Log
+    await logAuditEvent({
+      actorId: executor?.id || null,
+      action: 'odoo_sync_executed',
+      entityType: 'odoo_sync',
+      metadata: {
+        syncedCount,
+        failedCount,
+        mode,
+      },
+    });
+
     revalidatePath('/odoo-sync');
+    revalidatePath('/notifications');
 
     return {
       success: true,

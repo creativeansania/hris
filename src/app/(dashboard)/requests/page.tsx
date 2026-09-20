@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Modal } from '@/components/ui/modal';
+import { EmptyState } from '@/components/ui/empty-state';
 import { createClient } from '@/lib/supabase/client';
 import { RequestItem, RequestType, LeaveBalance } from '@/types/database';
 import {
@@ -31,6 +32,11 @@ import {
   calculateWorkingDays,
 } from '@/app/actions/requests';
 import { getRequestTypes } from '@/app/actions/request-types';
+import {
+  saveOfflineRequest,
+  cacheMasterData,
+  getCachedMasterData,
+} from '@/lib/offline-db';
 
 export default function RequestsPage() {
   const [isPending, startTransition] = useTransition();
@@ -67,32 +73,59 @@ export default function RequestsPage() {
   const [calculatedDays, setCalculatedDays] = useState<number>(1);
   const [calculatingDays, setCalculatingDays] = useState(false);
 
-  // Load initial data
+  // Load initial data (with offline cache support)
   const loadData = useCallback(async () => {
     setLoading(true);
-    const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
 
-    const email = user?.email || '';
-    setCurrentUserEmail(email);
+    try {
+      if (isOnline) {
+        const supabase = createClient();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
 
-    // Fetch in parallel
-    const [reqsRes, typesRes, balRes] = await Promise.all([
-      getMyRequests({ employeeEmail: email, status: statusFilter, category: categoryFilter }),
-      getRequestTypes(),
-      getEmployeeLeaveBalance(undefined, new Date().getFullYear(), email),
-    ]);
+        const email = user?.email || '';
+        setCurrentUserEmail(email);
 
-    if (reqsRes.data) setRequests(reqsRes.data);
-    if (typesRes.data) {
-      // Filter to active types
-      setRequestTypes(typesRes.data.filter((t) => t.is_active));
+        // Fetch in parallel
+        const [reqsRes, typesRes, balRes] = await Promise.all([
+          getMyRequests({ employeeEmail: email, status: statusFilter, category: categoryFilter }),
+          getRequestTypes(),
+          getEmployeeLeaveBalance(undefined, new Date().getFullYear(), email),
+        ]);
+
+        if (reqsRes.data) setRequests(reqsRes.data);
+        if (typesRes.data) {
+          const activeTypes = typesRes.data.filter((t) => t.is_active);
+          setRequestTypes(activeTypes);
+          await cacheMasterData('request_types', activeTypes);
+        }
+        if (balRes.data) {
+          setLeaveBalance(balRes.data);
+          await cacheMasterData('leave_balance', balRes.data);
+        }
+      } else {
+        // Fallback to cached master data for offline forms
+        const [cachedTypes, cachedBalance] = await Promise.all([
+          getCachedMasterData<RequestType[]>('request_types'),
+          getCachedMasterData<LeaveBalance>('leave_balance'),
+        ]);
+
+        if (cachedTypes) setRequestTypes(cachedTypes);
+        if (cachedBalance) setLeaveBalance(cachedBalance);
+      }
+    } catch (err) {
+      console.warn('Network issue loading requests, reading from cache:', err);
+      const [cachedTypes, cachedBalance] = await Promise.all([
+        getCachedMasterData<RequestType[]>('request_types'),
+        getCachedMasterData<LeaveBalance>('leave_balance'),
+      ]);
+      if (cachedTypes) setRequestTypes(cachedTypes);
+      if (cachedBalance) setLeaveBalance(cachedBalance);
+    } finally {
+      setLoading(false);
     }
-    if (balRes.data) setLeaveBalance(balRes.data);
-
-    setLoading(false);
   }, [statusFilter, categoryFilter]);
 
   useEffect(() => {
@@ -205,6 +238,58 @@ export default function RequestsPage() {
       }
     }
 
+    const isDeviceOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+
+    // Offline submission fallback
+    if (!isDeviceOnline) {
+      try {
+        const filePayloads = await Promise.all(
+          files.map(async (file) => {
+            return new Promise<{ name: string; type: string; size: number; base64: string }>(
+              (resolve) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                  resolve({
+                    name: file.name,
+                    type: file.type,
+                    size: file.size,
+                    base64: reader.result as string,
+                  });
+                };
+                reader.readAsDataURL(file);
+              }
+            );
+          })
+        );
+
+        await saveOfflineRequest({
+          employeeEmail: currentUserEmail,
+          requestTypeId: selectedTypeId,
+          requestTypeName: selectedType?.name,
+          startDate,
+          endDate: endDate || startDate,
+          startTime,
+          endTime,
+          isHalfDay,
+          reason: reason.trim(),
+          files: filePayloads,
+        });
+
+        setFormSuccess(
+          'Pengajuan berhasil disimpan di Antrean Offline (IndexedDB). Akan dikirim otomatis saat koneksi internet kembali aktif.'
+        );
+        window.dispatchEvent(new CustomEvent('hris-queue-changed'));
+        setTimeout(() => {
+          setIsCreateModalOpen(false);
+          resetForm();
+        }, 1500);
+        return;
+      } catch {
+        setFormError('Gagal menyimpan formulir pengajuan ke penyimpanan lokal perangkat.');
+        return;
+      }
+    }
+
     const formData = new FormData();
     formData.append('employeeEmail', currentUserEmail);
     formData.append('request_type_id', selectedTypeId);
@@ -220,16 +305,41 @@ export default function RequestsPage() {
     });
 
     startTransition(async () => {
-      const res = await createLeaveOrPermitRequest(formData);
-      if (!res.success) {
-        setFormError(res.error || 'Terjadi kesalahan saat mengajukan.');
-      } else {
-        setFormSuccess('Permohonan berhasil diajukan dan sedang menunggu persetujuan.');
-        setTimeout(() => {
-          setIsCreateModalOpen(false);
-          resetForm();
-          loadData();
-        }, 1200);
+      try {
+        const res = await createLeaveOrPermitRequest(formData);
+        if (!res.success) {
+          setFormError(res.error || 'Terjadi kesalahan saat mengajukan.');
+        } else {
+          setFormSuccess('Permohonan berhasil diajukan dan sedang menunggu persetujuan.');
+          setTimeout(() => {
+            setIsCreateModalOpen(false);
+            resetForm();
+            loadData();
+          }, 1200);
+        }
+      } catch {
+        // Fallback to offline queue on unexpected network failure
+        try {
+          await saveOfflineRequest({
+            employeeEmail: currentUserEmail,
+            requestTypeId: selectedTypeId,
+            requestTypeName: selectedType?.name,
+            startDate,
+            endDate: endDate || startDate,
+            startTime,
+            endTime,
+            isHalfDay,
+            reason: reason.trim(),
+          });
+          setFormSuccess('Koneksi terputus saat submit. Pengajuan otomatis dialihkan ke Antrean Offline lokal.');
+          window.dispatchEvent(new CustomEvent('hris-queue-changed'));
+          setTimeout(() => {
+            setIsCreateModalOpen(false);
+            resetForm();
+          }, 1500);
+        } catch {
+          setFormError('Terjadi kesalahan sistem saat memproses pengajuan.');
+        }
       }
     });
   };
@@ -443,22 +553,13 @@ export default function RequestsPage() {
               <p className="text-xs">Memuat daftar pengajuan...</p>
             </div>
           ) : requests.length === 0 ? (
-            <div className="bg-[#111827] border border-slate-800/80 rounded-2xl p-12 text-center">
-              <div className="w-12 h-12 rounded-xl bg-slate-800/60 flex items-center justify-center mx-auto text-slate-400 mb-3">
-                <CalendarDays className="w-6 h-6" />
-              </div>
-              <h3 className="text-base font-semibold text-white">Belum Ada Pengajuan</h3>
-              <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-                Anda belum memiliki riwayat pengajuan cuti atau izin. Klik tombol di bawah untuk membuat permohonan baru.
-              </p>
-              <button
-                onClick={() => setIsCreateModalOpen(true)}
-                className="mt-4 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Buat Pengajuan Baru
-              </button>
-            </div>
+            <EmptyState
+              icon={CalendarDays}
+              title="Belum Ada Pengajuan"
+              description="Anda belum memiliki riwayat permohonan cuti, izin, atau sakit. Buat permohonan baru untuk diproses oleh atasan & HR."
+              actionLabel="Buat Pengajuan Baru"
+              onAction={() => setIsCreateModalOpen(true)}
+            />
           ) : (
             <div className="space-y-3">
               {requests.map((req) => {

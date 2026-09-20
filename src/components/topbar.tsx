@@ -1,9 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Bell, LogOut, Shield, Wifi, WifiOff, Menu } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { LogOut, Shield, Wifi, WifiOff, Menu, Download, Database, RefreshCw } from 'lucide-react';
 import { ROLE_LABELS, ROLE_COLORS } from '@/lib/constants';
 import { EmployeeRole } from '@/types/database';
+import { NotificationsPopover } from '@/components/notifications-popover';
+import { getAllOfflineQueueStats } from '@/lib/offline-db';
+import { syncAllOfflineData } from '@/lib/sync-engine';
 
 interface TopbarProps {
   userName?: string;
@@ -20,19 +23,57 @@ export function Topbar({
 }: TopbarProps) {
   const [isOnline, setIsOnline] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [queueCount, setQueueCount] = useState(0);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [canInstall, setCanInstall] = useState(false);
 
-  React.useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
+  const checkQueue = async () => {
+    const stats = await getAllOfflineQueueStats();
+    setQueueCount(stats.total);
+  };
+
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      checkQueue();
+    };
+    const handleOffline = () => {
+      setIsOnline(false);
+      checkQueue();
+    };
+    const handleQueueChange = () => checkQueue();
+    const handleSyncStarted = () => setIsSyncing(true);
+    const handleSyncCompleted = () => {
+      setIsSyncing(false);
+      checkQueue();
+    };
+
+    const handleInstallReady = () => setCanInstall(true);
+    const handleAppInstalled = () => setCanInstall(false);
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
+    window.addEventListener('hris-queue-changed', handleQueueChange);
+    window.addEventListener('hris-sync-started', handleSyncStarted);
+    window.addEventListener('hris-sync-completed', handleSyncCompleted);
+    window.addEventListener('hris-pwa-install-ready', handleInstallReady);
+    window.addEventListener('hris-pwa-installed', handleAppInstalled);
 
     setIsOnline(navigator.onLine);
+    checkQueue();
+
+    if (typeof window !== 'undefined' && (window as any).deferredPrompt) {
+      setCanInstall(true);
+    }
 
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('hris-queue-changed', handleQueueChange);
+      window.removeEventListener('hris-sync-started', handleSyncStarted);
+      window.removeEventListener('hris-sync-completed', handleSyncCompleted);
+      window.removeEventListener('hris-pwa-install-ready', handleInstallReady);
+      window.removeEventListener('hris-pwa-installed', handleAppInstalled);
     };
   }, []);
 
@@ -44,6 +85,21 @@ export function Topbar({
     } catch {
       window.location.href = '/login';
     }
+  };
+
+  const handleInstallClick = async () => {
+    const promptEvent = (window as any).deferredPrompt;
+    if (promptEvent) {
+      promptEvent.prompt();
+      const { outcome } = await promptEvent.userChoice;
+      if (outcome === 'accepted') setCanInstall(false);
+      (window as any).deferredPrompt = null;
+    }
+  };
+
+  const handleManualSync = async () => {
+    setIsSyncing(true);
+    await syncAllOfflineData();
   };
 
   const roleStyle = ROLE_COLORS[userRole] || ROLE_COLORS.staff;
@@ -62,6 +118,7 @@ export function Topbar({
         </button>
 
         <div className="flex items-center gap-2">
+          {/* Network Connection Indicator */}
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border bg-slate-900/60 border-slate-800 text-slate-300">
             {isOnline ? (
               <>
@@ -71,22 +128,54 @@ export function Topbar({
             ) : (
               <>
                 <WifiOff className="w-3.5 h-3.5 text-amber-400" />
-                <span className="text-amber-400">Mode Offline (PWA)</span>
+                <span className="text-amber-400">Mode Offline</span>
               </>
             )}
           </div>
+
+          {/* Offline Queue Badge (if items exist) */}
+          {queueCount > 0 && (
+            <button
+              onClick={handleManualSync}
+              disabled={!isOnline || isSyncing}
+              title={
+                isOnline
+                  ? `Ada ${queueCount} data di antrean. Klik untuk sinkronkan.`
+                  : `${queueCount} data tersimpan di antrean offline.`
+              }
+              className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-mono font-medium border transition-colors ${
+                isOnline
+                  ? 'bg-blue-500/10 border-blue-500/30 text-blue-300 hover:bg-blue-500/20'
+                  : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+              }`}
+            >
+              <Database className="w-3 h-3" />
+              <span>{queueCount} Antrean</span>
+              {isOnline && (
+                <RefreshCw
+                  className={`w-2.5 h-2.5 ml-0.5 ${isSyncing ? 'animate-spin text-blue-400' : 'text-slate-400'}`}
+                />
+              )}
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Right: Notification & Profile */}
-      <div className="flex items-center gap-3">
-        <button
-          className="relative p-2 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-slate-800/50 transition"
-          title="Notifikasi"
-        >
-          <Bell className="w-4 h-4" />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-blue-500 rounded-full ring-2 ring-[#0d1322]" />
-        </button>
+      {/* Right: Install button, Notification & Profile */}
+      <div className="flex items-center gap-2 sm:gap-3">
+        {/* PWA Install Button in Header */}
+        {canInstall && (
+          <button
+            onClick={handleInstallClick}
+            title="Install HRIS sebagai Aplikasi Desktop/Mobile"
+            className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 text-xs font-semibold transition active:scale-[0.98]"
+          >
+            <Download className="w-3.5 h-3.5 text-blue-400" />
+            <span>Install App</span>
+          </button>
+        )}
+
+        <NotificationsPopover userEmail={userEmail} />
 
         <div className="h-5 w-[1px] bg-slate-800" />
 

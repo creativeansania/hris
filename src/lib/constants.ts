@@ -99,6 +99,12 @@ export const NAVIGATION_ITEMS = [
     roles: ['hr', 'admin', 'management'] as EmployeeRole[],
   },
   {
+    title: 'Notifikasi',
+    href: '/notifications',
+    icon: 'Bell',
+    roles: ['admin', 'management', 'hr', 'kepala_divisi', 'spv', 'staff'] as EmployeeRole[],
+  },
+  {
     title: 'Pengaturan Sistem',
     href: '/settings',
     icon: 'Sliders',

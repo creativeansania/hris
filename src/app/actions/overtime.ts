@@ -261,6 +261,18 @@ export async function createOvertimeAssignment(payload: {
           approver_role: hrApprover.role,
           decision: 'pending',
         });
+
+        // Notify HR of pending overtime approval
+        await client.from('notifications').insert({
+          employee_id: hrApprover.id,
+          type: 'overtime_assigned',
+          title: 'Persetujuan Lembur Menunggu Review',
+          message: `${supervisor.full_name} mengajukan penugasan lembur pada ${payload.date} (${durationHours} jam).`,
+          action_url: '/approvals',
+          related_entity_type: 'requests',
+          related_entity_id: newReq.id,
+          is_read: false,
+        });
       } else if (!hrApprover) {
         // If no HR, and supervisor is admin, can mark approved immediately
         if (supervisor.role === 'admin') {
@@ -270,6 +282,18 @@ export async function createOvertimeAssignment(payload: {
             .eq('id', newReq.id);
         }
       }
+
+      // Notify subordinate employee
+      await client.from('notifications').insert({
+        employee_id: empId,
+        type: 'overtime_assigned',
+        title: 'Penugasan Lembur Baru',
+        message: `Anda ditugaskan lembur pada ${payload.date} (${payload.startTime} - ${payload.endTime}) oleh ${supervisor.full_name}. Catatan: ${payload.reason.trim()}`,
+        action_url: '/overtime',
+        related_entity_type: 'requests',
+        related_entity_id: newReq.id,
+        is_read: false,
+      });
     }
 
     revalidatePath('/overtime');
