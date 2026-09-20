@@ -1,16 +1,14 @@
 'use server';
 
-import { createAdminClient } from '@/lib/supabase/admin';
+import { getAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { parseFingerprintFile, RawAttendanceRow } from '@/lib/attendance/parser';
+import { getTodayWIB } from '@/lib/date-utils';
+import { getAuthenticatedEmployee, requireAuthRole } from '@/lib/auth';
 
 function getClient() {
-  try {
-    return createAdminClient();
-  } catch {
-    return null;
-  }
+  return getAdminClient();
 }
 
 export interface PreviewRow extends RawAttendanceRow {
@@ -78,7 +76,7 @@ export async function parseAndPreviewFingerprint(
 
     // 2. Find min & max date in batch
     const dates = rawRows.map((r) => r.attendance_date).filter(Boolean).sort();
-    const period_start = dates[0] || new Date().toISOString().split('T')[0];
+    const period_start = dates[0] || getTodayWIB();
     const period_end = dates[dates.length - 1] || period_start;
 
     // 3. Fetch existing attendance records in this period to detect duplicates
@@ -197,15 +195,12 @@ export async function confirmAttendanceImport(payload: {
   try {
     const client = getClient() || (await createClient());
 
-    // Get an uploader employee (first admin/hr or default)
-    const { data: adminEmp } = await client
-      .from('employees')
-      .select('id')
-      .in('role', ['admin', 'hr'])
-      .limit(1)
-      .single();
+    const authCheck = await requireAuthRole(client, ['admin', 'hr']);
+    if (!authCheck.authorized) {
+      return { success: false, error: authCheck.error };
+    }
 
-    const uploaderId = adminEmp?.id || '00000000-0000-0000-0000-000000000000';
+    const uploaderId = authCheck.employee.id;
 
     // Filter rows that have a matched employee
     const validRows = payload.rows.filter((r) => r.employee_id);
@@ -350,13 +345,19 @@ export async function getAttendanceManagement(filters: {
   year?: number;
   divisionId?: string | 'all';
   employeeId?: string | 'all';
+  page?: number;
+  pageSize?: number;
 }) {
   try {
     const client = getClient() || (await createClient());
+    const shouldPaginate = typeof filters.page === 'number' && filters.page > 0;
+    const page = shouldPaginate ? filters.page! : 1;
+    const pageSize = filters.pageSize && filters.pageSize > 0 ? filters.pageSize : 50;
 
     let query = client
       .from('attendance')
-      .select(`
+      .select(
+        `
         *,
         employee:employees!attendance_employee_id_fkey(
           id,
@@ -366,7 +367,9 @@ export async function getAttendanceManagement(filters: {
           division_id,
           division:divisions(name)
         )
-      `)
+      `,
+        { count: 'exact' }
+      )
       .order('attendance_date', { ascending: false })
       .order('clock_in', { ascending: true });
 
@@ -383,8 +386,14 @@ export async function getAttendanceManagement(filters: {
       query = query.eq('employee_id', filters.employeeId);
     }
 
-    const { data, error } = await query;
-    if (error) return { data: [], error: error.message };
+    if (shouldPaginate && (!filters.divisionId || filters.divisionId === 'all')) {
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
+      query = query.range(from, to);
+    }
+
+    const { data, count, error } = await query;
+    if (error) return { data: [], total: 0, page, pageSize, totalPages: 0, error: error.message };
 
     let results = (data as AttendanceRecordItem[]) || [];
 
@@ -393,9 +402,26 @@ export async function getAttendanceManagement(filters: {
       results = results.filter((r) => r.employee && (r.employee as unknown as { division_id: string }).division_id === filters.divisionId);
     }
 
-    return { data: results, error: null };
+    const total = count ?? results.length;
+    const totalPages = shouldPaginate ? Math.ceil(total / pageSize) : 1;
+
+    return {
+      data: results,
+      total,
+      page,
+      pageSize: shouldPaginate ? pageSize : total,
+      totalPages,
+      error: null,
+    };
   } catch (err: unknown) {
-    return { data: [], error: err instanceof Error ? err.message : 'Gagal mengambil data absensi' };
+    return {
+      data: [],
+      total: 0,
+      page: 1,
+      pageSize: 50,
+      totalPages: 0,
+      error: err instanceof Error ? err.message : 'Gagal mengambil data absensi',
+    };
   }
 }
 
@@ -459,6 +485,33 @@ export async function getMyAttendanceHistory(employeeEmail?: string, month?: num
 export async function fillLateReason(attendanceId: string, lateReason: string) {
   try {
     const client = getClient() || (await createClient());
+
+    const currentEmp = await getAuthenticatedEmployee(client);
+    if (!currentEmp) {
+      return { success: false, error: 'Tidak terotentikasi. Silakan login terlebih dahulu.' };
+    }
+
+    // Verify ownership or administrative privilege
+    const { data: record, error: recError } = await client
+      .from('attendance')
+      .select('employee_id')
+      .eq('id', attendanceId)
+      .maybeSingle();
+
+    if (recError || !record) {
+      return { success: false, error: 'Data absensi tidak ditemukan.' };
+    }
+
+    const isOwner = record.employee_id === currentEmp.id;
+    const isPrivileged = ['admin', 'hr', 'management'].includes(currentEmp.role);
+
+    if (!isOwner && !isPrivileged) {
+      return {
+        success: false,
+        error: 'Akses ditolak. Anda hanya dapat mengisi alasan keterlambatan untuk data absensi Anda sendiri.',
+      };
+    }
+
     const { error } = await client
       .from('attendance')
       .update({

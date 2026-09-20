@@ -547,7 +547,7 @@ export default function OvertimePage() {
                 <div className="bg-slate-900/70 border border-slate-800/80 rounded-xl p-3 min-w-[240px] space-y-2">
                   <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between">
                     <span>Status Verifikasi</span>
-                    <span className="text-[10px] text-blue-400 font-mono">Alur Sprint 6</span>
+                    <span className="text-[10px] text-blue-400 font-medium">Alur Standar</span>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2 text-xs">

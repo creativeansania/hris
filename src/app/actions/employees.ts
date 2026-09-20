@@ -1,6 +1,6 @@
 'use server';
 
-import { createAdminClient } from '@/lib/supabase/admin';
+import { getAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import {
@@ -10,13 +10,12 @@ import {
   GenderType,
   MaritalStatusType,
 } from '@/types/database';
+import { sanitizePostgrestSearch } from '@/lib/security';
+import { requireAuthRole } from '@/lib/auth';
+import { getTodayWIB } from '@/lib/date-utils';
 
 function getClient() {
-  try {
-    return createAdminClient();
-  } catch {
-    return null;
-  }
+  return getAdminClient();
 }
 
 export interface GetEmployeesFilter {
@@ -24,17 +23,31 @@ export interface GetEmployeesFilter {
   role?: EmployeeRole | 'all';
   divisionId?: string | 'all';
   status?: EmployeeStatus | 'all';
+  page?: number;
+  pageSize?: number;
+}
+
+export interface GetEmployeesResponse {
+  data: Employee[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  error: string | null;
 }
 
 export async function getEmployees(
   filter: GetEmployeesFilter = {}
-): Promise<{ data: Employee[]; error: string | null }> {
+): Promise<GetEmployeesResponse> {
   try {
     const client = getClient() || (await createClient());
+    const shouldPaginate = typeof filter.page === 'number' && filter.page > 0;
+    const page = shouldPaginate ? filter.page! : 1;
+    const pageSize = filter.pageSize && filter.pageSize > 0 ? filter.pageSize : 25;
 
     let query = client
       .from('employees')
-      .select('*')
+      .select('*', { count: 'exact' })
       .order('created_at', { ascending: false });
 
     if (filter.role && filter.role !== 'all') {
@@ -50,13 +63,33 @@ export async function getEmployees(
     }
 
     if (filter.search && filter.search.trim()) {
-      const s = filter.search.trim();
-      query = query.or(`full_name.ilike.%${s}%,email.ilike.%${s}%,nik.ilike.%${s}%`);
+      const s = sanitizePostgrestSearch(filter.search);
+      if (s) {
+        query = query.or(`full_name.ilike.%${s}%,email.ilike.%${s}%,nik.ilike.%${s}%`);
+      }
     }
 
-    const { data: rawEmployees, error } = await query;
+    if (shouldPaginate) {
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
+      query = query.range(from, to);
+    }
 
-    if (error) return { data: [], error: error.message };
+    const { data: rawEmployees, count, error } = await query;
+
+    if (error) {
+      return {
+        data: [],
+        total: 0,
+        page,
+        pageSize,
+        totalPages: 0,
+        error: error.message,
+      };
+    }
+
+    const total = count ?? (rawEmployees || []).length;
+    const totalPages = shouldPaginate ? Math.ceil(total / pageSize) : 1;
 
     // Fetch related divisions and spv data in bulk
     const divisionIds = Array.from(new Set((rawEmployees || []).map((e) => e.division_id).filter(Boolean)));
@@ -80,9 +113,23 @@ export async function getEmployees(
       spv: e.spv_id ? spvMap[e.spv_id] || null : null,
     }));
 
-    return { data: merged as Employee[], error: null };
+    return {
+      data: merged as Employee[],
+      total,
+      page,
+      pageSize: shouldPaginate ? pageSize : total,
+      totalPages,
+      error: null,
+    };
   } catch (err: unknown) {
-    return { data: [], error: err instanceof Error ? err.message : 'Gagal mengambil data karyawan' };
+    return {
+      data: [],
+      total: 0,
+      page: 1,
+      pageSize: 25,
+      totalPages: 0,
+      error: err instanceof Error ? err.message : 'Gagal mengambil data karyawan',
+    };
   }
 }
 
@@ -150,6 +197,11 @@ export async function createEmployee(formData: EmployeeFormData) {
       return { success: false, error: 'Email ini sudah terdaftar untuk karyawan lain.' };
     }
 
+    const authCheck = await requireAuthRole(client, ['admin', 'hr']);
+    if (!authCheck.authorized) {
+      return { success: false, error: authCheck.error };
+    }
+
     const insertPayload = {
       full_name: formData.full_name.trim(),
       email: formData.email.trim().toLowerCase(),
@@ -176,7 +228,7 @@ export async function createEmployee(formData: EmployeeFormData) {
       spv_id: formData.spv_id || null,
       work_schedule_id: formData.work_schedule_id || null,
       fingerprint_ac_no: formData.fingerprint_ac_no?.trim() || null,
-      join_date: formData.join_date || new Date().toISOString().split('T')[0],
+      join_date: formData.join_date || getTodayWIB(),
       status: 'pending_claim' as EmployeeStatus,
     };
 
@@ -190,19 +242,28 @@ export async function createEmployee(formData: EmployeeFormData) {
       return { success: false, error: insertError?.message || 'Gagal menyimpan data karyawan' };
     }
 
-    // Auto-create initial leave balance for the current year
+    // Auto-create initial annual leave balance for the current year
     try {
       const currentYear = new Date().getFullYear();
-      await client.from('leave_balances').insert({
-        employee_id: newEmp.id,
-        year: currentYear,
-        initial_quota: 12,
-        used_quota: 0,
-        remaining_quota: 12,
-        expired_at: `${currentYear}-12-31`,
-      });
-    } catch {
-      // Ignore if leave_balances trigger already handles it
+      const { data: cutiType } = await client
+        .from('request_types')
+        .select('id')
+        .eq('code', 'cuti_tahunan')
+        .maybeSingle();
+
+      if (cutiType) {
+        await client.from('leave_balances').insert({
+          employee_id: newEmp.id,
+          year: currentYear,
+          request_type_id: cutiType.id,
+          quota: 12,
+          used: 0,
+          adjustment: 0,
+          carry_over: 0,
+        });
+      }
+    } catch (balErr) {
+      console.warn('Auto-create leave balance warning:', balErr);
     }
 
     revalidatePath('/employees');
@@ -215,6 +276,11 @@ export async function createEmployee(formData: EmployeeFormData) {
 export async function updateEmployee(id: string, formData: EmployeeFormData) {
   try {
     const client = getClient() || (await createClient());
+
+    const authCheck = await requireAuthRole(client, ['admin', 'hr']);
+    if (!authCheck.authorized) {
+      return { success: false, error: authCheck.error };
+    }
 
     const updatePayload = {
       full_name: formData.full_name.trim(),
@@ -266,6 +332,12 @@ export async function updateEmployee(id: string, formData: EmployeeFormData) {
 export async function setEmployeeStatus(id: string, status: EmployeeStatus) {
   try {
     const client = getClient() || (await createClient());
+
+    const authCheck = await requireAuthRole(client, ['admin', 'hr']);
+    if (!authCheck.authorized) {
+      return { success: false, error: authCheck.error };
+    }
+
     const { error } = await client
       .from('employees')
       .update({ status, updated_at: new Date().toISOString() })

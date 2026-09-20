@@ -1,72 +1,15 @@
 'use server';
 
-import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { NotificationItem, NotificationType, EmployeeRole } from '@/types/database';
 
+import { getAdminClient } from '@/lib/supabase/admin';
+import { getAuthenticatedEmployee } from '@/lib/auth';
+import { getTodayWIB } from '@/lib/date-utils';
+
 function getClient() {
-  try {
-    return createAdminClient();
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Resolves current authenticated employee from Supabase Auth or email fallback.
- */
-async function getAuthenticatedEmployee(client: any, userEmail?: string) {
-  let emp = null;
-
-  if (userEmail) {
-    const { data } = await client
-      .from('employees')
-      .select('id, full_name, email, role, division_id, spv_id')
-      .ilike('email', userEmail.trim())
-      .maybeSingle();
-    emp = data;
-  }
-
-  if (!emp) {
-    const userClient = await createClient();
-    const {
-      data: { user },
-    } = await userClient.auth.getUser();
-
-    if (user?.email) {
-      const { data } = await client
-        .from('employees')
-        .select('id, full_name, email, role, division_id, spv_id')
-        .eq('auth_user_id', user.id)
-        .maybeSingle();
-
-      if (data) {
-        emp = data;
-      } else {
-        const { data: byEmail } = await client
-          .from('employees')
-          .select('id, full_name, email, role, division_id, spv_id')
-          .ilike('email', user.email)
-          .maybeSingle();
-        emp = byEmail;
-      }
-    }
-  }
-
-  // Fallback to first active admin/HR for dev environment
-  if (!emp) {
-    const { data: fallback } = await client
-      .from('employees')
-      .select('id, full_name, email, role, division_id, spv_id')
-      .in('role', ['admin', 'hr', 'management', 'staff'])
-      .eq('status', 'active')
-      .limit(1)
-      .maybeSingle();
-    emp = fallback;
-  }
-
-  return emp;
+  return getAdminClient();
 }
 
 /**
@@ -383,8 +326,8 @@ export async function checkAndDispatchSystemReminders(userEmail?: string): Promi
     const now = new Date();
     const thirtyDaysFromNow = new Date();
     thirtyDaysFromNow.setDate(now.getDate() + 30);
-    const thirtyDaysStr = thirtyDaysFromNow.toISOString().split('T')[0];
-    const todayStr = now.toISOString().split('T')[0];
+    const thirtyDaysStr = getTodayWIB(thirtyDaysFromNow);
+    const todayStr = getTodayWIB(now);
 
     const { data: expiringContracts } = await client
       .from('employee_contracts')

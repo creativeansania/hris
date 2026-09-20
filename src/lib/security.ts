@@ -67,3 +67,16 @@ export function isValidMimeType(
 export function isValidFileSize(sizeInBytes: number, maxMegabytes = 5): boolean {
   return sizeInBytes > 0 && sizeInBytes <= maxMegabytes * 1024 * 1024;
 }
+
+/**
+ * Sanitizes input string for use inside PostgREST filter expressions (e.g. .or()).
+ * Strips PostgREST control characters like commas, parentheses, colons, dots, quotes, and backslashes.
+ */
+export function sanitizePostgrestSearch(input?: string | null): string {
+  if (!input) return '';
+  return input
+    .replace(/[,().:;%\\"'`[\]{}]/g, '')
+    .trim()
+    .substring(0, 100);
+}
+

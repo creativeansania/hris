@@ -225,12 +225,12 @@ export default function OdooSyncPage() {
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b border-slate-800/80 pb-6">
         <div>
           <div className="flex items-center gap-2 mb-1.5">
-            <span className="text-xs font-mono font-medium text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/20 flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" />
-              SPRINT 9 — INTEGRASI ODOO ERP
+            <span className="text-xs font-semibold text-purple-400 bg-purple-500/10 px-2.5 py-0.5 rounded-full border border-purple-500/20 flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-purple-400" />
+              Integrasi ERP
             </span>
             <span className="text-slate-600">&bull;</span>
-            <span className="text-xs text-slate-400">Outbox Pattern & Manual Push</span>
+            <span className="text-xs text-slate-400">Outbox Engine & Sinkronisasi</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
             Sinkronisasi Odoo

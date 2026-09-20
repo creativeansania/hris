@@ -1,8 +1,9 @@
 'use server';
 
-import { createAdminClient } from '@/lib/supabase/admin';
+import { getAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
+import { requireAuthRole } from '@/lib/auth';
 
 export interface ScheduleDayInput {
   day_of_week: number;
@@ -16,12 +17,7 @@ export interface ScheduleDayInput {
 
 export async function getScheduleGroups() {
   try {
-    let client;
-    try {
-      client = createAdminClient();
-    } catch {
-      client = await createClient();
-    }
+    const client = getAdminClient() || (await createClient());
 
     const { data: groups, error: groupError } = await client
       .from('work_schedule_groups')
@@ -52,7 +48,11 @@ export async function saveScheduleGroup(
   daysData: ScheduleDayInput[]
 ) {
   try {
-    const admin = createAdminClient();
+    const admin = getAdminClient() || (await createClient());
+    const authCheck = await requireAuthRole(admin, ['admin', 'hr']);
+    if (!authCheck.authorized) {
+      return { success: false, error: authCheck.error };
+    }
     let targetGroupId = groupId;
 
     if (targetGroupId) {
@@ -114,7 +114,11 @@ export async function saveScheduleGroup(
 
 export async function deleteScheduleGroup(groupId: string) {
   try {
-    const admin = createAdminClient();
+    const admin = getAdminClient() || (await createClient());
+    const authCheck = await requireAuthRole(admin, ['admin', 'hr']);
+    if (!authCheck.authorized) {
+      return { success: false, error: authCheck.error };
+    }
 
     // Check if any employees assigned to this schedule
     const { count } = await admin

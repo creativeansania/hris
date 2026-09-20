@@ -1,68 +1,14 @@
 'use server';
 
-import { createAdminClient } from '@/lib/supabase/admin';
+import { getAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { OdooSyncOutboxItem, OdooSyncStatus, EmployeeRole } from '@/types/database';
 import { logAuditEvent } from '@/lib/audit';
+import { getAuthenticatedEmployee, requireAuthRole } from '@/lib/auth';
 
 function getClient() {
-  try {
-    return createAdminClient();
-  } catch {
-    return null;
-  }
-}
-
-async function getAuthenticatedEmployee(client: any, userEmail?: string) {
-  let emp = null;
-
-  if (userEmail) {
-    const { data } = await client
-      .from('employees')
-      .select('id, full_name, email, role')
-      .ilike('email', userEmail.trim())
-      .maybeSingle();
-    emp = data;
-  }
-
-  if (!emp) {
-    const userClient = await createClient();
-    const {
-      data: { user },
-    } = await userClient.auth.getUser();
-
-    if (user?.email) {
-      const { data } = await client
-        .from('employees')
-        .select('id, full_name, email, role')
-        .eq('auth_user_id', user.id)
-        .maybeSingle();
-
-      if (data) {
-        emp = data;
-      } else {
-        const { data: byEmail } = await client
-          .from('employees')
-          .select('id, full_name, email, role')
-          .ilike('email', user.email)
-          .maybeSingle();
-        emp = byEmail;
-      }
-    }
-  }
-
-  if (!emp) {
-    const { data: fallback } = await client
-      .from('employees')
-      .select('id, full_name, email, role')
-      .in('role', ['admin', 'hr'])
-      .limit(1)
-      .maybeSingle();
-    emp = fallback;
-  }
-
-  return emp;
+  return getAdminClient();
 }
 
 /**
@@ -101,6 +47,14 @@ export async function collectPendingSyncData(userEmail?: string): Promise<{
 }> {
   try {
     const client = getClient() || (await createClient());
+    const authCheck = await requireAuthRole(client, ['admin', 'hr'], userEmail);
+    if (!authCheck.authorized) {
+      return {
+        success: false,
+        collectedCount: 0,
+        message: authCheck.error,
+      };
+    }
 
     // 1. Fetch all existing outbox entity pairs to prevent duplicates
     const { data: existingOutbox } = await client
@@ -393,7 +347,16 @@ export async function executeOdooSync(payload: {
 }> {
   try {
     const client = getClient() || (await createClient());
-    const executor = await getAuthenticatedEmployee(client, payload.executorEmail);
+    const authCheck = await requireAuthRole(client, ['admin', 'hr'], payload.executorEmail);
+    if (!authCheck.authorized) {
+      return {
+        success: false,
+        syncedCount: 0,
+        failedCount: 0,
+        message: authCheck.error,
+      };
+    }
+    const executor = authCheck.employee;
 
     // 1. Fetch target items
     let query = client
@@ -550,6 +513,10 @@ export async function retryFailedOdooSync(
 }> {
   try {
     const client = getClient() || (await createClient());
+    const authCheck = await requireAuthRole(client, ['admin', 'hr'], executorEmail);
+    if (!authCheck.authorized) {
+      return { success: false, message: authCheck.error };
+    }
 
     const { data: item, error: fetchErr } = await client
       .from('odoo_sync_outbox')

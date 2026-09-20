@@ -1,6 +1,6 @@
 'use server';
 
-import { createAdminClient } from '@/lib/supabase/admin';
+import { getAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import {
@@ -12,13 +12,11 @@ import { AttendanceReviewStatus } from '@/types/database';
 import { checkClockInRateLimit } from '@/lib/rate-limiter';
 import { sanitizeText } from '@/lib/security';
 import { logAuditEvent } from '@/lib/audit';
+import { getTodayWIB } from '@/lib/date-utils';
+import { requireAuthRole } from '@/lib/auth';
 
 function getClient() {
-  try {
-    return createAdminClient();
-  } catch {
-    return null;
-  }
+  return getAdminClient();
 }
 
 export interface GpsClockInPayload {
@@ -57,7 +55,7 @@ export async function getTodayGpsStatus(employeeEmail?: string) {
     }
 
     // 2. Fetch today's attendance (source = app_fallback)
-    const today = new Date().toISOString().split('T')[0];
+    const today = getTodayWIB();
     const { data: attendance, error: attError } = await client
       .from('attendance')
       .select('*, office:office_locations(name, address, radius_meters)')
@@ -118,7 +116,7 @@ export async function submitGpsClockIn(payload: GpsClockInPayload) {
     }
 
     const punchDate = payload.recordedAt ? new Date(payload.recordedAt) : new Date();
-    const today = punchDate.toISOString().split('T')[0];
+    const today = getTodayWIB(punchDate);
 
     // 3. Check if already clocked in today
     const { data: existing } = await client
@@ -317,7 +315,7 @@ export async function submitGpsClockOut(payload: GpsClockOutPayload) {
     }
 
     const punchDate = payload.recordedAt ? new Date(payload.recordedAt) : new Date();
-    const today = punchDate.toISOString().split('T')[0];
+    const today = getTodayWIB(punchDate);
 
     // 2. Find today's clock in record
     const { data: attendance, error: attError } = await client
@@ -447,15 +445,12 @@ export async function reviewGpsAttendance(
   try {
     const client = getClient() || (await createClient());
 
-    // Resolve reviewer (current admin/hr)
-    const { data: adminEmp } = await client
-      .from('employees')
-      .select('id')
-      .in('role', ['admin', 'hr', 'management'])
-      .limit(1)
-      .single();
+    const authCheck = await requireAuthRole(client, ['admin', 'hr', 'management', 'spv']);
+    if (!authCheck.authorized) {
+      return { success: false, error: authCheck.error };
+    }
 
-    const reviewerId = adminEmp?.id || null;
+    const reviewerId = authCheck.employee.id;
 
     const { error } = await client
       .from('attendance')

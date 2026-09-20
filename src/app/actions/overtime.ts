@@ -1,66 +1,14 @@
 'use server';
 
-import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { RequestItem, Employee } from '@/types/database';
 
+import { getAdminClient } from '@/lib/supabase/admin';
+import { getAuthenticatedEmployee } from '@/lib/auth';
+
 function getClient() {
-  try {
-    return createAdminClient();
-  } catch {
-    return null;
-  }
-}
-
-async function getAuthenticatedEmployee(client: any, employeeEmail?: string) {
-  let emp = null;
-
-  if (employeeEmail) {
-    const { data } = await client
-      .from('employees')
-      .select('id, full_name, email, role, spv_id, division_id, photo_url')
-      .ilike('email', employeeEmail.trim())
-      .maybeSingle();
-    emp = data;
-  }
-
-  if (!emp) {
-    const userClient = await createClient();
-    const {
-      data: { user },
-    } = await userClient.auth.getUser();
-
-    if (user?.email) {
-      const { data } = await client
-        .from('employees')
-        .select('id, full_name, email, role, spv_id, division_id, photo_url')
-        .eq('auth_user_id', user.id)
-        .maybeSingle();
-
-      if (data) {
-        emp = data;
-      } else {
-        const { data: byEmail } = await client
-          .from('employees')
-          .select('id, full_name, email, role, spv_id, division_id, photo_url')
-          .ilike('email', user.email)
-          .maybeSingle();
-        emp = byEmail;
-      }
-    }
-  }
-
-  if (!emp) {
-    const { data: fallback } = await client
-      .from('employees')
-      .select('id, full_name, email, role, spv_id, division_id, photo_url')
-      .limit(1)
-      .maybeSingle();
-    emp = fallback;
-  }
-
-  return emp;
+  return getAdminClient();
 }
 
 /**

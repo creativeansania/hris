@@ -79,7 +79,15 @@ export async function proxy(request: NextRequest) {
       request.nextUrl.searchParams.get('dev') === '1');
 
   if (isDev && request.nextUrl.searchParams.get('dev') === '1') {
-    response.cookies.set('hris_dev_mode', 'true', { path: '/', maxAge: 86400 });
+    response.cookies.set('hris_dev_mode', 'true', {
+      path: '/',
+      maxAge: 86400,
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+    });
+  } else if (!isDev && request.cookies.has('hris_dev_mode')) {
+    response.cookies.delete('hris_dev_mode');
   }
 
   // 1. Authentication Check

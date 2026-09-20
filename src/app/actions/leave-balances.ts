@@ -1,16 +1,13 @@
 'use server';
 
-import { createAdminClient } from '@/lib/supabase/admin';
+import { getAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { LeaveBalance } from '@/types/database';
+import { requireAuthRole } from '@/lib/auth';
 
 function getClient() {
-  try {
-    return createAdminClient();
-  } catch {
-    return null;
-  }
+  return getAdminClient();
 }
 
 /**
@@ -149,6 +146,10 @@ export async function adjustEmployeeLeaveBalance(payload: {
 }) {
   try {
     const client = getClient() || (await createClient());
+    const authCheck = await requireAuthRole(client, ['admin', 'hr'], payload.adjustedByEmail);
+    if (!authCheck.authorized) {
+      return { success: false, error: authCheck.error };
+    }
 
     if (!payload.reason || payload.reason.trim().length < 3) {
       return { success: false, error: 'Alasan penyesuaian kuota wajib diisi (minimal 3 karakter).' };

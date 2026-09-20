@@ -1,6 +1,6 @@
 'use server';
 
-import { createAdminClient } from '@/lib/supabase/admin';
+import { getAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import {
@@ -11,64 +11,10 @@ import {
   EmployeeRole,
 } from '@/types/database';
 import { logAuditEvent } from '@/lib/audit';
+import { getAuthenticatedEmployee, requireAuthRole } from '@/lib/auth';
 
 function getClient() {
-  try {
-    return createAdminClient();
-  } catch {
-    return null;
-  }
-}
-
-async function getAuthenticatedEmployee(client: any, userEmail?: string) {
-  let emp = null;
-
-  if (userEmail) {
-    const { data } = await client
-      .from('employees')
-      .select('id, full_name, email, role, division_id')
-      .ilike('email', userEmail.trim())
-      .maybeSingle();
-    emp = data;
-  }
-
-  if (!emp) {
-    const userClient = await createClient();
-    const {
-      data: { user },
-    } = await userClient.auth.getUser();
-
-    if (user?.email) {
-      const { data } = await client
-        .from('employees')
-        .select('id, full_name, email, role, division_id')
-        .eq('auth_user_id', user.id)
-        .maybeSingle();
-
-      if (data) {
-        emp = data;
-      } else {
-        const { data: byEmail } = await client
-          .from('employees')
-          .select('id, full_name, email, role, division_id')
-          .ilike('email', user.email)
-          .maybeSingle();
-        emp = byEmail;
-      }
-    }
-  }
-
-  if (!emp) {
-    const { data: fallback } = await client
-      .from('employees')
-      .select('id, full_name, email, role, division_id')
-      .in('role', ['admin', 'management', 'hr'])
-      .limit(1)
-      .maybeSingle();
-    emp = fallback;
-  }
-
-  return emp;
+  return getAdminClient();
 }
 
 /**
@@ -158,12 +104,22 @@ export async function getPayrollRules(): Promise<{
 }> {
   try {
     const client = getClient() || (await createClient());
-    await seedDefaultPayrollRules();
 
-    const { data, error } = await client
+    let { data, error } = await client
       .from('payroll_rules')
       .select('*')
       .order('rule_key', { ascending: true });
+
+    // Seed defaults only if table is currently empty
+    if (!data || data.length === 0) {
+      await seedDefaultPayrollRules();
+      const res = await client
+        .from('payroll_rules')
+        .select('*')
+        .order('rule_key', { ascending: true });
+      data = res.data;
+      error = res.error;
+    }
 
     if (error) return { data: [], error: error.message };
     return { data: (data as PayrollRule[]) || [], error: null };
@@ -185,13 +141,17 @@ export async function updatePayrollRule(
 ) {
   try {
     const client = getClient() || (await createClient());
-    const currentUser = await getAuthenticatedEmployee(client, userEmail);
+    const authCheck = await requireAuthRole(client, ['admin', 'management'], userEmail);
+    if (!authCheck.authorized) {
+      return { success: false, error: authCheck.error };
+    }
+    const currentUser = authCheck.employee;
 
     const { error } = await client
       .from('payroll_rules')
       .update({
         rule_value: ruleValue.trim(),
-        updated_by: currentUser?.id || null,
+        updated_by: currentUser.id,
         updated_at: new Date().toISOString(),
       })
       .eq('rule_key', ruleKey);
@@ -272,6 +232,11 @@ export async function createPayrollPeriod(payload: {
   try {
     const client = getClient() || (await createClient());
 
+    const authCheck = await requireAuthRole(client, ['admin', 'hr', 'management'], payload.creatorEmail);
+    if (!authCheck.authorized) {
+      return { success: false, error: authCheck.error };
+    }
+
     if (new Date(payload.periodEnd) <= new Date(payload.periodStart)) {
       return {
         success: false,
@@ -321,7 +286,18 @@ export async function generatePayrollRun(
 }> {
   try {
     const client = getClient() || (await createClient());
-    const executor = await getAuthenticatedEmployee(client, executorEmail);
+
+    const authCheck = await requireAuthRole(client, ['admin', 'management'], executorEmail);
+    if (!authCheck.authorized) {
+      return {
+        success: false,
+        generatedCount: 0,
+        totalPayroll: 0,
+        message: authCheck.error,
+        error: authCheck.error,
+      };
+    }
+    const executor = authCheck.employee;
 
     // 1. Fetch period and check status
     const { data: period, error: pErr } = await client

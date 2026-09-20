@@ -18,11 +18,30 @@ export async function trackError(details: ErrorLogDetails): Promise<void> {
   const isServer = typeof window === 'undefined';
   const timestamp = new Date().toISOString();
 
-  // Print sanitized error in local log
-  console.error(
-    `[${timestamp}] [ERROR_TRACKER] [${details.source.toUpperCase()}] ${details.message}`,
-    details.metadata ? details.metadata : ''
-  );
+  const correlationId = `err_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const logPayload = {
+    correlationId,
+    timestamp,
+    level: 'ERROR',
+    environment: process.env.NODE_ENV || 'development',
+    source: details.source,
+    component: details.component,
+    endpoint: details.endpoint,
+    message: details.message,
+    userId: details.userId,
+    stack: details.stack?.substring(0, 1000),
+    metadata: details.metadata,
+  };
+
+  // Structured JSON log for production observability (Datadog, CloudWatch, Sentry)
+  if (process.env.NODE_ENV === 'production') {
+    console.error(JSON.stringify(logPayload));
+  } else {
+    console.error(
+      `[${timestamp}] [ERROR_TRACKER] [${details.source.toUpperCase()}] ${details.message}`,
+      details.metadata ? details.metadata : ''
+    );
+  }
 
   // If running on server, record directly to audit_logs
   if (isServer) {

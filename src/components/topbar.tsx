@@ -143,7 +143,7 @@ export function Topbar({
                   ? `Ada ${queueCount} data di antrean. Klik untuk sinkronkan.`
                   : `${queueCount} data tersimpan di antrean offline.`
               }
-              className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-mono font-medium border transition-colors ${
+              className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium border transition-colors ${
                 isOnline
                   ? 'bg-blue-500/10 border-blue-500/30 text-blue-300 hover:bg-blue-500/20'
                   : 'bg-amber-500/10 border-amber-500/30 text-amber-300'

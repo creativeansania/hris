@@ -1,16 +1,13 @@
 'use server';
 
-import { createAdminClient } from '@/lib/supabase/admin';
+import { getAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { Holiday, HolidayType } from '@/types/database';
+import { requireAuthRole } from '@/lib/auth';
 
 function getClient() {
-  try {
-    return createAdminClient();
-  } catch {
-    return null;
-  }
+  return getAdminClient();
 }
 
 export async function getHolidays(year?: number): Promise<{ data: Holiday[]; error: string | null }> {
@@ -42,6 +39,10 @@ export async function createHoliday(formData: {
 }) {
   try {
     const client = getClient() || (await createClient());
+    const authCheck = await requireAuthRole(client, ['admin', 'hr']);
+    if (!authCheck.authorized) {
+      return { success: false, error: authCheck.error };
+    }
     const { error } = await client.from('holidays').insert({
       name: formData.name.trim(),
       holiday_date: formData.holiday_date,
@@ -67,6 +68,10 @@ export async function updateHoliday(
 ) {
   try {
     const client = getClient() || (await createClient());
+    const authCheck = await requireAuthRole(client, ['admin', 'hr']);
+    if (!authCheck.authorized) {
+      return { success: false, error: authCheck.error };
+    }
     const { error } = await client
       .from('holidays')
       .update({
@@ -87,6 +92,10 @@ export async function updateHoliday(
 export async function deleteHoliday(id: string) {
   try {
     const client = getClient() || (await createClient());
+    const authCheck = await requireAuthRole(client, ['admin', 'hr']);
+    if (!authCheck.authorized) {
+      return { success: false, error: authCheck.error };
+    }
     const { error } = await client.from('holidays').delete().eq('id', id);
     if (error) return { success: false, error: error.message };
 

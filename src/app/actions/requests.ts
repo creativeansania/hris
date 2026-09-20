@@ -1,6 +1,5 @@
 'use server';
 
-import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { RequestItem, LeaveBalance, RequestType } from '@/types/database';
@@ -8,66 +7,11 @@ import { sanitizeText, sanitizeFileName } from '@/lib/security';
 import { checkFileUploadRateLimit } from '@/lib/rate-limiter';
 import { logAuditEvent } from '@/lib/audit';
 
+import { getAdminClient } from '@/lib/supabase/admin';
+import { getAuthenticatedEmployee } from '@/lib/auth';
+
 function getClient() {
-  try {
-    return createAdminClient();
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Helper to resolve the active employee record from Supabase Auth or email fallback.
- */
-async function getAuthenticatedEmployee(client: any, employeeEmail?: string) {
-  let emp = null;
-
-  if (employeeEmail) {
-    const { data } = await client
-      .from('employees')
-      .select('id, full_name, email, role, spv_id, division_id, join_date, photo_url')
-      .ilike('email', employeeEmail.trim())
-      .maybeSingle();
-    emp = data;
-  }
-
-  if (!emp) {
-    const userClient = await createClient();
-    const {
-      data: { user },
-    } = await userClient.auth.getUser();
-
-    if (user?.email) {
-      const { data } = await client
-        .from('employees')
-        .select('id, full_name, email, role, spv_id, division_id, join_date, photo_url')
-        .eq('auth_user_id', user.id)
-        .maybeSingle();
-
-      if (data) {
-        emp = data;
-      } else {
-        const { data: byEmail } = await client
-          .from('employees')
-          .select('id, full_name, email, role, spv_id, division_id, join_date, photo_url')
-          .ilike('email', user.email)
-          .maybeSingle();
-        emp = byEmail;
-      }
-    }
-  }
-
-  // Fallback to first active admin or staff if in local dev
-  if (!emp) {
-    const { data: fallback } = await client
-      .from('employees')
-      .select('id, full_name, email, role, spv_id, division_id, join_date, photo_url')
-      .limit(1)
-      .maybeSingle();
-    emp = fallback;
-  }
-
-  return emp;
+  return getAdminClient();
 }
 
 /**

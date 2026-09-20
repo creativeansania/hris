@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { RequestType, RequestCategory, GenderType, MaritalStatusType } from '@/types/database';
+import { requireAuthRole } from '@/lib/auth';
 
 export async function getRequestTypes(): Promise<{ data: RequestType[]; error: string | null }> {
   try {
@@ -38,6 +39,10 @@ export async function updateRequestType(
 ) {
   try {
     const supabase = await createClient();
+    const authCheck = await requireAuthRole(supabase, ['admin', 'hr']);
+    if (!authCheck.authorized) {
+      return { success: false, error: authCheck.error };
+    }
     const { error } = await supabase
       .from('request_types')
       .update({
@@ -68,6 +73,10 @@ export async function updateRequestType(
 export async function toggleRequestTypeStatus(id: string, is_active: boolean) {
   try {
     const supabase = await createClient();
+    const authCheck = await requireAuthRole(supabase, ['admin', 'hr']);
+    if (!authCheck.authorized) {
+      return { success: false, error: authCheck.error };
+    }
     const { error } = await supabase
       .from('request_types')
       .update({ is_active, updated_at: new Date().toISOString() })

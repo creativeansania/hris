@@ -1,16 +1,13 @@
 'use server';
 
-import { createAdminClient } from '@/lib/supabase/admin';
+import { getAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { Division } from '@/types/database';
+import { requireAuthRole } from '@/lib/auth';
 
 function getClient() {
-  try {
-    return createAdminClient();
-  } catch {
-    return null;
-  }
+  return getAdminClient();
 }
 
 export async function getDivisions(): Promise<{ data: Division[]; error: string | null }> {
@@ -59,6 +56,10 @@ export async function createDivision(formData: {
 }) {
   try {
     const client = getClient() || (await createClient());
+    const authCheck = await requireAuthRole(client, ['admin', 'hr']);
+    if (!authCheck.authorized) {
+      return { success: false, error: authCheck.error };
+    }
     const { error } = await client.from('divisions').insert({
       name: formData.name.trim(),
       kepala_divisi_id: formData.kepala_divisi_id || null,
@@ -84,6 +85,10 @@ export async function updateDivision(
 ) {
   try {
     const client = getClient() || (await createClient());
+    const authCheck = await requireAuthRole(client, ['admin', 'hr']);
+    if (!authCheck.authorized) {
+      return { success: false, error: authCheck.error };
+    }
     const { error } = await client
       .from('divisions')
       .update({
@@ -106,6 +111,10 @@ export async function updateDivision(
 export async function deleteDivision(id: string) {
   try {
     const client = getClient() || (await createClient());
+    const authCheck = await requireAuthRole(client, ['admin', 'hr']);
+    if (!authCheck.authorized) {
+      return { success: false, error: authCheck.error };
+    }
     const { count } = await client
       .from('employees')
       .select('id', { count: 'exact', head: true })

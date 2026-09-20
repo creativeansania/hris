@@ -1,65 +1,12 @@
 'use server';
 
-import { createAdminClient } from '@/lib/supabase/admin';
+import { getAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { EmployeeRole } from '@/types/database';
+import { getAuthenticatedEmployee, requireAuthRole } from '@/lib/auth';
 
 function getClient() {
-  try {
-    return createAdminClient();
-  } catch {
-    return null;
-  }
-}
-
-async function getAuthenticatedEmployee(client: any, userEmail?: string) {
-  let emp = null;
-
-  if (userEmail) {
-    const { data } = await client
-      .from('employees')
-      .select('id, full_name, email, role, division_id')
-      .ilike('email', userEmail.trim())
-      .maybeSingle();
-    emp = data;
-  }
-
-  if (!emp) {
-    const userClient = await createClient();
-    const {
-      data: { user },
-    } = await userClient.auth.getUser();
-
-    if (user?.email) {
-      const { data } = await client
-        .from('employees')
-        .select('id, full_name, email, role, division_id')
-        .eq('auth_user_id', user.id)
-        .maybeSingle();
-
-      if (data) {
-        emp = data;
-      } else {
-        const { data: byEmail } = await client
-          .from('employees')
-          .select('id, full_name, email, role, division_id')
-          .ilike('email', user.email)
-          .maybeSingle();
-        emp = byEmail;
-      }
-    }
-  }
-
-  if (!emp) {
-    const { data: fallback } = await client
-      .from('employees')
-      .select('id, full_name, email, role, division_id')
-      .limit(1)
-      .maybeSingle();
-    emp = fallback;
-  }
-
-  return emp;
+  return getAdminClient();
 }
 
 export interface ReportFilterPayload {
@@ -201,8 +148,19 @@ export async function getReportingMetrics(
 
   try {
     const client = getClient() || (await createClient());
-    const currentUser = await getAuthenticatedEmployee(client, filters.userEmail);
-    const userRole: EmployeeRole = currentUser?.role || 'admin';
+    const authCheck = await requireAuthRole(
+      client,
+      ['admin', 'hr', 'management', 'kepala_divisi', 'spv'],
+      filters.userEmail
+    );
+
+    if (!authCheck.authorized) {
+      defaultRes.error = authCheck.error;
+      return defaultRes;
+    }
+
+    const currentUser = authCheck.employee;
+    const userRole: EmployeeRole = currentUser.role;
 
     // 1. Calculate Period Range
     const m = Number(filters.month) || new Date().getMonth() + 1;

@@ -276,7 +276,7 @@ export default function NotificationsPage() {
         <div>
           <div className="flex items-center gap-2">
             <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/20">
-              Sprint 11 • In-App Engine
+              Pusat Pesan & Pengingat
             </span>
             {unreadCount > 0 && (
               <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-500/20 text-rose-300 border border-rose-500/30 animate-pulse">
@@ -288,7 +288,7 @@ export default function NotificationsPage() {
             Pusat Notifikasi
           </h1>
           <p className="text-sm text-slate-400 mt-1 max-w-2xl">
-            Semua riwayat pembaruan status pengajuan, penugasan lembur, catatan kedisiplinan, kontrak PKWT, dan aktivitas sinkronisasi sistem Anda.
+            Semua riwayat pembaruan status pengajuan, penugasan lembur, dan pengingat operasional.
           </p>
         </div>
 

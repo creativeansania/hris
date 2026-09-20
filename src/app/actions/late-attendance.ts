@@ -1,15 +1,13 @@
 'use server';
 
-import { createAdminClient } from '@/lib/supabase/admin';
+import { getAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
+import { getTodayWIB, getWIBDateParts } from '@/lib/date-utils';
+import { requireAuthRole } from '@/lib/auth';
 
 function getClient() {
-  try {
-    return createAdminClient();
-  } catch {
-    return null;
-  }
+  return getAdminClient();
 }
 
 /**
@@ -35,8 +33,8 @@ export async function checkCanApplyIzinTelat(employeeEmail?: string) {
       };
     }
 
-    const now = new Date();
-    const dayOfWeek = now.getDay(); // 0 = Sunday, 1 = Monday, ...
+    const wibParts = getWIBDateParts();
+    const dayOfWeek = wibParts.dayOfWeek;
 
     let scheduledStartTime = '08:00';
     let isDayOff = false;
@@ -70,16 +68,28 @@ export async function checkCanApplyIzinTelat(employeeEmail?: string) {
     // Compare current time with scheduled start time
     const [schH, schM] = scheduledStartTime.split(':').map(Number);
     const scheduledTotalMinutes = schH * 60 + schM;
-    const currentTotalMinutes = now.getHours() * 60 + now.getMinutes();
+    const currentTotalMinutes = wibParts.hour * 60 + wibParts.minute;
 
-    // Check if already applied for today
-    const today = now.toISOString().split('T')[0];
-    const { data: existingRequest } = await client
+    // Check if already applied for today (specifically for Izin Telat)
+    const today = getTodayWIB();
+
+    const { data: reqType } = await client
+      .from('request_types')
+      .select('id')
+      .eq('code', 'izin_telat')
+      .maybeSingle();
+
+    let existingQuery = client
       .from('requests')
       .select('id, status, start_time, end_time, reason')
       .eq('employee_id', emp.id)
-      .eq('start_date', today)
-      .maybeSingle();
+      .eq('start_date', today);
+
+    if (reqType) {
+      existingQuery = existingQuery.eq('request_type_id', reqType.id);
+    }
+
+    const { data: existingRequest } = await existingQuery.maybeSingle();
 
     if (existingRequest) {
       return {
@@ -145,13 +155,14 @@ export async function submitIzinTelat(payload: {
       return { success: false, error: 'Tipe pengajuan Izin Telat belum terdaftar di sistem.' };
     }
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = getTodayWIB();
 
-    // Check existing request
+    // Check existing request specifically for izin_telat
     const { data: existing } = await client
       .from('requests')
       .select('id')
       .eq('employee_id', emp.id)
+      .eq('request_type_id', reqType.id)
       .eq('start_date', today)
       .maybeSingle();
 
@@ -321,6 +332,11 @@ export async function decideIzinTelat(
 ) {
   try {
     const client = getClient() || (await createClient());
+
+    const authCheck = await requireAuthRole(client, ['admin', 'hr', 'management', 'spv']);
+    if (!authCheck.authorized) {
+      return { success: false, error: authCheck.error };
+    }
 
     // 1. Update request status
     const { data: req, error: reqError } = await client
@@ -600,15 +616,12 @@ export async function createAttendanceCorrection(payload: {
 
     const client = getClient() || (await createClient());
 
-    // 1. Resolve HR user
-    const { data: hrUser } = await client
-      .from('employees')
-      .select('id')
-      .in('role', ['admin', 'hr', 'management'])
-      .limit(1)
-      .single();
+    const authCheck = await requireAuthRole(client, ['admin', 'hr', 'management']);
+    if (!authCheck.authorized) {
+      return { success: false, error: authCheck.error };
+    }
 
-    const hrId = hrUser?.id || '00000000-0000-0000-0000-000000000000';
+    const hrId = authCheck.employee.id;
 
     // 2. Fetch original attendance record
     const { data: orig, error: origError } = await client
@@ -630,8 +643,27 @@ export async function createAttendanceCorrection(payload: {
 
     if (newClockIn) {
       const [h, m] = newClockIn.split(':').map(Number);
-      const scheduledH = 8;
-      const scheduledM = 0;
+      let scheduledH = 8;
+      let scheduledM = 0;
+
+      const scheduleId = (orig.employee as any)?.work_schedule_id;
+      if (scheduleId && orig.attendance_date) {
+        const attDate = new Date(`${orig.attendance_date}T12:00:00Z`);
+        const dayOfWeek = attDate.getUTCDay();
+        const { data: schDay } = await client
+          .from('work_schedule_days')
+          .select('start_time, is_day_off')
+          .eq('group_id', scheduleId)
+          .eq('day_of_week', dayOfWeek)
+          .maybeSingle();
+
+        if (schDay && schDay.start_time && !schDay.is_day_off) {
+          const [sH, sM] = schDay.start_time.split(':').map(Number);
+          scheduledH = sH;
+          scheduledM = sM;
+        }
+      }
+
       const diffMinutes = h * 60 + m - (scheduledH * 60 + scheduledM);
       newLateMinutes = Math.max(0, diffMinutes);
     }

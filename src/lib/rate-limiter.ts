@@ -28,6 +28,7 @@ export function checkRateLimit(
   resetTime: number;
   message?: string;
 } {
+  maybePruneRateLimitStore();
   const now = Date.now();
   const windowStart = now - windowMs;
 
@@ -87,17 +88,35 @@ export function checkAuthRateLimit(ipOrKey: string) {
 }
 
 /**
- * Periodically purge stale entries to prevent memory leak
+ * Opportunistically purge stale entries to prevent memory leak in serverless runtimes.
  */
-if (typeof setInterval !== 'undefined') {
-  setInterval(() => {
-    const now = Date.now();
-    const maxRetention = 600000; // 10 minutes
-    for (const [key, record] of rateLimitStore.entries()) {
-      record.timestamps = record.timestamps.filter((ts) => ts > now - maxRetention);
-      if (record.timestamps.length === 0) {
-        rateLimitStore.delete(key);
-      }
+function pruneStaleEntries(now: number) {
+  const maxRetention = 600000; // 10 minutes
+  for (const [key, record] of rateLimitStore.entries()) {
+    record.timestamps = record.timestamps.filter((ts) => ts > now - maxRetention);
+    if (record.timestamps.length === 0) {
+      rateLimitStore.delete(key);
     }
-  }, 120000); // Every 2 minutes
+  }
 }
+
+// Trigger opportunistic pruning when store exceeds threshold
+let operationCount = 0;
+export function maybePruneRateLimitStore() {
+  operationCount++;
+  if (operationCount > 50 || rateLimitStore.size > 500) {
+    operationCount = 0;
+    pruneStaleEntries(Date.now());
+  }
+}
+
+// Optional interval with unref() for persistent Node processes without blocking shutdown
+if (typeof setInterval !== 'undefined') {
+  const timer = setInterval(() => {
+    pruneStaleEntries(Date.now());
+  }, 120000);
+  if (typeof timer.unref === 'function') {
+    timer.unref();
+  }
+}
+

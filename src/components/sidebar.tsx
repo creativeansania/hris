@@ -89,7 +89,7 @@ export function Sidebar({
             <div>
               <span className="text-base font-bold tracking-tight text-white flex items-center gap-1.5">
                 HRIS
-                <span className="text-[10px] uppercase font-mono px-1.5 py-0.2 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 font-medium">
+                <span className="text-[10px] uppercase font-semibold tracking-wide px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">
                   v3.0
                 </span>
               </span>
@@ -110,7 +110,7 @@ export function Sidebar({
 
         {/* Navigation items */}
         <div className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
-          <div className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500 font-mono">
+          <div className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
             Menu Utama
           </div>
 
@@ -141,13 +141,13 @@ export function Sidebar({
 
         {/* Bottom System Status */}
         <div className="p-3 border-t border-slate-800/80">
-          <div className="p-3 rounded-lg bg-slate-900/60 border border-slate-800/80 text-[11px] text-slate-400 space-y-1">
-            <div className="flex items-center justify-between font-mono text-[10px]">
-              <span className="text-slate-500">ENGINE</span>
+          <div className="p-3 rounded-lg bg-slate-900/60 border border-slate-800/80 text-[11px] text-slate-400 space-y-1.5">
+            <div className="flex items-center justify-between text-[11px]">
+              <span className="text-slate-400">Engine</span>
               <span className="text-emerald-400 font-medium">PostgreSQL 15</span>
             </div>
-            <div className="flex items-center justify-between font-mono text-[10px]">
-              <span className="text-slate-500">SECURITY</span>
+            <div className="flex items-center justify-between text-[11px]">
+              <span className="text-slate-400">Security</span>
               <span className="text-blue-400 font-medium flex items-center gap-1">
                 <ShieldCheck className="w-3 h-3" /> Row Level Security
               </span>

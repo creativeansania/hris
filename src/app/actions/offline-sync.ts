@@ -1,17 +1,13 @@
 'use server';
 
-import { createAdminClient } from '@/lib/supabase/admin';
+import { getAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { submitGpsClockIn, submitGpsClockOut } from '@/app/actions/gps-attendance';
 import { createLeaveOrPermitRequest } from '@/app/actions/requests';
 import { logAuditEvent } from '@/lib/audit';
 
 function getClient() {
-  try {
-    return createAdminClient();
-  } catch {
-    return null;
-  }
+  return getAdminClient();
 }
 
 export interface SyncAttendanceItemInput {

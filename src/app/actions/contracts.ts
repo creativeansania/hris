@@ -1,6 +1,6 @@
 'use server';
 
-import { createAdminClient } from '@/lib/supabase/admin';
+import { getAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import {
@@ -10,63 +10,10 @@ import {
   ContractType,
 } from '@/types/database';
 import { getEmployeeLeaveBalance } from '@/app/actions/requests';
+import { getAuthenticatedEmployee, requireAuthRole } from '@/lib/auth';
 
 function getClient() {
-  try {
-    return createAdminClient();
-  } catch {
-    return null;
-  }
-}
-
-async function getAuthenticatedEmployee(client: any, userEmail?: string) {
-  let emp = null;
-
-  if (userEmail) {
-    const { data } = await client
-      .from('employees')
-      .select('id, full_name, email, role')
-      .ilike('email', userEmail.trim())
-      .maybeSingle();
-    emp = data;
-  }
-
-  if (!emp) {
-    const userClient = await createClient();
-    const {
-      data: { user },
-    } = await userClient.auth.getUser();
-
-    if (user?.email) {
-      const { data } = await client
-        .from('employees')
-        .select('id, full_name, email, role')
-        .eq('auth_user_id', user.id)
-        .maybeSingle();
-
-      if (data) {
-        emp = data;
-      } else {
-        const { data: byEmail } = await client
-          .from('employees')
-          .select('id, full_name, email, role')
-          .ilike('email', user.email)
-          .maybeSingle();
-        emp = byEmail;
-      }
-    }
-  }
-
-  if (!emp) {
-    const { data: fallback } = await client
-      .from('employees')
-      .select('id, full_name, email, role')
-      .limit(1)
-      .maybeSingle();
-    emp = fallback;
-  }
-
-  return emp;
+  return getAdminClient();
 }
 
 /**
@@ -154,7 +101,11 @@ export async function addEmployeeContract(payload: {
 }) {
   try {
     const client = getClient() || (await createClient());
-    const creator = await getAuthenticatedEmployee(client, payload.creatorEmail);
+    const authCheck = await requireAuthRole(client, ['admin', 'hr'], payload.creatorEmail);
+    if (!authCheck.authorized) {
+      return { success: false, error: authCheck.error };
+    }
+    const creator = authCheck.employee;
 
     if (!payload.employeeId) {
       return { success: false, error: 'ID Karyawan wajib diisi.' };
@@ -243,6 +194,10 @@ export async function getExpiringContracts(thresholdDays: number = 30): Promise<
 }> {
   try {
     const client = getClient() || (await createClient());
+    const authCheck = await requireAuthRole(client, ['admin', 'hr', 'management']);
+    if (!authCheck.authorized) {
+      return { data: [], criticalCount: 0, warningCount: 0, error: authCheck.error };
+    }
 
     const { data, error } = await client
       .from('employee_contracts')
@@ -359,7 +314,15 @@ export async function addEmployeePositionMutation(payload: {
 }) {
   try {
     const client = getClient() || (await createClient());
-    const creator = await getAuthenticatedEmployee(client, payload.creatorEmail);
+    const authCheck = await requireAuthRole(
+      client,
+      ['admin', 'hr', 'management'],
+      payload.creatorEmail
+    );
+    if (!authCheck.authorized) {
+      return { success: false, error: authCheck.error };
+    }
+    const creator = authCheck.employee;
 
     if (!payload.employeeId || !payload.divisionId || !payload.positionTitle || !payload.startDate) {
       return { success: false, error: 'Semua field mutasi jabatan wajib diisi.' };
