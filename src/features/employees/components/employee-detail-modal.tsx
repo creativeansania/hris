@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { FileText, ArrowUpRight } from 'lucide-react';
+import { FileText, ArrowUpRight, Trash2 } from 'lucide-react';
 import { Modal } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { RoleBadge, StatusBadge } from '@/components/ui/badge';
@@ -12,12 +12,14 @@ interface EmployeeDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   employee: Employee | null;
+  onOpenDelete?: (emp: Employee) => void;
 }
 
 export function EmployeeDetailModal({
   isOpen,
   onClose,
   employee,
+  onOpenDelete,
 }: EmployeeDetailModalProps) {
   if (!isOpen || !employee) return null;
 
@@ -151,16 +153,32 @@ export function EmployeeDetailModal({
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-lg shadow-blue-600/20 transition"
           >
             <FileText className="w-3.5 h-3.5" />
-            <span>Buka Profil Lengkap & Histori Kontrak</span>
+            <span>Buka Profil Lengkap &amp; Histori Kontrak</span>
             <ArrowUpRight className="w-3.5 h-3.5 ml-0.5" />
           </Link>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onClose}
-          >
-            Tutup
-          </Button>
+          <div className="flex items-center gap-2">
+            {onOpenDelete && (
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={() => {
+                  onClose();
+                  onOpenDelete(employee);
+                }}
+                className="bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 text-xs flex items-center gap-1.5 cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Hapus Akun
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onClose}
+            >
+              Tutup
+            </Button>
+          </div>
         </div>
       </div>
     </Modal>

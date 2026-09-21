@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Users, FileText, Eye, Edit2, UserX, CheckCircle2 } from 'lucide-react';
+import { Users, FileText, Eye, Edit2, UserX, CheckCircle2, Trash2 } from 'lucide-react';
 import { RoleBadge, StatusBadge } from '@/components/ui/badge';
 import { Employee } from '@/types/database';
 
@@ -12,6 +12,7 @@ interface EmployeeTableProps {
   onOpenDetail: (emp: Employee) => void;
   onOpenEdit: (emp: Employee) => void;
   onToggleStatus: (emp: Employee) => void;
+  onOpenDelete?: (emp: Employee) => void;
 }
 
 export function EmployeeTable({
@@ -20,6 +21,7 @@ export function EmployeeTable({
   onOpenDetail,
   onOpenEdit,
   onToggleStatus,
+  onOpenDelete,
 }: EmployeeTableProps) {
   if (isLoading) {
     return (
@@ -133,6 +135,15 @@ export function EmployeeTable({
                       <CheckCircle2 className="w-3.5 h-3.5" />
                     )}
                   </button>
+                  {onOpenDelete && (
+                    <button
+                      onClick={() => onOpenDelete(emp)}
+                      className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-md transition"
+                      title="Hapus Akun / Karyawan"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
               </td>
             </tr>

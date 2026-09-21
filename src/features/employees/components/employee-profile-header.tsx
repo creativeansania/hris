@@ -10,6 +10,7 @@ import {
   Phone,
   Plus,
   User,
+  Trash2,
 } from 'lucide-react';
 import { RoleBadge, StatusBadge } from '@/components/ui/badge';
 import { Employee } from '@/types/database';
@@ -17,11 +18,13 @@ import { Employee } from '@/types/database';
 interface EmployeeProfileHeaderProps {
   employee: Employee;
   onOpenAddContract: () => void;
+  onOpenDelete?: () => void;
 }
 
 export function EmployeeProfileHeader({
   employee,
   onOpenAddContract,
+  onOpenDelete,
 }: EmployeeProfileHeaderProps) {
   return (
     <div className="space-y-6">
@@ -40,6 +43,16 @@ export function EmployeeProfileHeader({
         </div>
 
         <div className="flex items-center gap-2">
+          {onOpenDelete && (
+            <button
+              onClick={onOpenDelete}
+              className="px-3.5 py-2 rounded-xl bg-rose-600/10 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/20 hover:border-rose-600 text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer shadow-sm"
+              title="Hapus / Reset Akun Karyawan"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Hapus Akun
+            </button>
+          )}
           <button
             onClick={onOpenAddContract}
             className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition flex items-center gap-1.5 shadow-lg shadow-blue-600/20 cursor-pointer"

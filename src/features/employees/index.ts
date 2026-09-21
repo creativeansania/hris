@@ -14,3 +14,4 @@ export { AddContractModal } from './components/add-contract-modal';
 export { AddPositionModal } from './components/add-position-modal';
 export { EmployeesClient } from './components/employees-client';
 export { EmployeeDetailClient } from './components/employee-detail-client';
+export { DeleteEmployeeModal } from './components/delete-employee-modal';

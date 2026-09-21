@@ -13,6 +13,7 @@ import { sanitizePostgrestSearch } from '@/lib/security';
 import { requireAuthRole } from '@/lib/auth';
 import { getTodayWIB } from '@/lib/date-utils';
 import { createClient } from '@/lib/supabase/server';
+import { getAdminClient } from '@/lib/supabase/admin';
 
 export interface GetEmployeesFilter {
   search?: string;
@@ -385,5 +386,157 @@ export async function getCurrentUserEmployee(): Promise<{
   } catch (err) {
     console.error('[getCurrentUserEmployee] Unexpected error:', err);
     return { user: null, employee: null };
+  }
+}
+
+/**
+ * Permanently deletes an employee and cleans up all dependent records across tables.
+ * Also deletes the user from Supabase auth.users if claimed, freeing up the email.
+ * Strictly restricted to admin. Prevents self-deletion of active caller.
+ */
+export async function deleteEmployee(id: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const actionClient = await getActionClient();
+    const authResult = await requireAuthRole(actionClient, ['admin']);
+    if (!authResult.authorized) {
+      return { success: false, error: authResult.error };
+    }
+
+    const { data: employee, error: fetchError } = await actionClient
+      .from('employees')
+      .select('id, full_name, email, auth_user_id, role')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (fetchError || !employee) {
+      return { success: false, error: 'Data karyawan tidak ditemukan.' };
+    }
+
+    // Prevent self-deletion
+    if (authResult.employee.id === employee.id) {
+      return {
+        success: false,
+        error: 'Anda tidak dapat menghapus akun Anda sendiri yang sedang aktif digunakan.',
+      };
+    }
+
+    // 1. Delete records in dependent child tables
+    await actionClient.from('employee_contracts').delete().eq('employee_id', id);
+    await actionClient.from('employee_positions').delete().eq('employee_id', id);
+    await actionClient.from('employee_allowances').delete().eq('employee_id', id);
+    await actionClient.from('attendance_corrections').delete().eq('employee_id', id);
+    await actionClient.from('attendance').delete().eq('employee_id', id);
+    await actionClient.from('request_attachments').delete().eq('uploaded_by', id);
+    await actionClient.from('request_approvals').delete().eq('approver_id', id);
+    await actionClient.from('requests').delete().eq('employee_id', id);
+    await actionClient.from('leave_balances').delete().eq('employee_id', id);
+    await actionClient.from('late_accumulations').delete().eq('employee_id', id);
+    await actionClient.from('payroll_runs').delete().eq('employee_id', id);
+    await actionClient.from('notifications').delete().eq('employee_id', id);
+
+    // 2. Unset foreign key references in other tables
+    await actionClient.from('employees').update({ spv_id: null }).eq('spv_id', id);
+    await actionClient.from('divisions').update({ kepala_divisi_id: null }).eq('kepala_divisi_id', id);
+
+    // 3. Delete employee record
+    const { error: deleteError } = await actionClient
+      .from('employees')
+      .delete()
+      .eq('id', id);
+
+    if (deleteError) {
+      console.error('[deleteEmployee] Error deleting employee:', deleteError);
+      return { success: false, error: deleteError.message };
+    }
+
+    // 4. Delete from Supabase Auth if auth_user_id exists
+    if (employee.auth_user_id) {
+      try {
+        const adminClient = getAdminClient();
+        if (adminClient) {
+          await adminClient.auth.admin.deleteUser(employee.auth_user_id);
+        }
+      } catch (authErr) {
+        console.error('[deleteEmployee] Error deleting auth user:', authErr);
+      }
+    }
+
+    // 5. Audit log
+    try {
+      await actionClient.from('audit_logs').insert({
+        user_id: authResult.employee.id,
+        action: 'DELETE_EMPLOYEE',
+        table_name: 'employees',
+        record_id: id,
+        old_values: {
+          full_name: employee.full_name,
+          email: employee.email,
+          role: employee.role,
+        },
+      });
+    } catch {
+      // ignore audit log failure
+    }
+
+    revalidatePath('/employees');
+    revalidatePath('/dashboard');
+    return { success: true };
+  } catch (err) {
+    console.error('[deleteEmployee] Unexpected error:', err);
+    return { success: false, error: err instanceof Error ? err.message : 'Gagal menghapus karyawan' };
+  }
+}
+
+/**
+ * Resets an employee's claim status so they can re-claim with a new Google SSO account.
+ * Deletes the existing Supabase auth user, sets auth_user_id to null, and status to pending_claim.
+ */
+export async function resetEmployeeClaim(id: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const actionClient = await getActionClient();
+    const authResult = await requireAuthRole(actionClient, ['admin']);
+    if (!authResult.authorized) {
+      return { success: false, error: authResult.error };
+    }
+
+    const { data: employee, error: fetchError } = await actionClient
+      .from('employees')
+      .select('id, full_name, email, auth_user_id')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (fetchError || !employee) {
+      return { success: false, error: 'Data karyawan tidak ditemukan.' };
+    }
+
+    if (employee.auth_user_id) {
+      const adminClient = getAdminClient();
+      if (adminClient) {
+        try {
+          await adminClient.auth.admin.deleteUser(employee.auth_user_id);
+        } catch (e) {
+          console.error('[resetEmployeeClaim] Failed to delete auth user:', e);
+        }
+      }
+    }
+
+    const { error: updateError } = await actionClient
+      .from('employees')
+      .update({
+        auth_user_id: null,
+        status: 'pending_claim',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id);
+
+    if (updateError) {
+      return { success: false, error: updateError.message };
+    }
+
+    revalidatePath('/employees');
+    return { success: true };
+  } catch (err) {
+    console.error('[resetEmployeeClaim] Unexpected error:', err);
+    return { success: false, error: err instanceof Error ? err.message : 'Gagal mereset klaim akun' };
   }
 }

@@ -11,7 +11,9 @@ import {
   EmployeeTable,
   EmployeeFormModal,
   EmployeeDetailModal,
+  DeleteEmployeeModal,
 } from '@/features/employees';
+import { useCurrentUser } from '@/hooks/use-current-user';
 import {
   getEmployees,
   setEmployeeStatus,
@@ -69,11 +71,13 @@ export function EmployeesClient({
   const [totalCount, setTotalCount] = useState<number>(initialTotalCount);
   const [totalPages, setTotalPages] = useState<number>(initialTotalPages);
 
-  // Modals state
+  const currentUser = useCurrentUser();
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [viewingEmployee, setViewingEmployee] = useState<Employee | null>(null);
+  const [deletingEmployee, setDeletingEmployee] = useState<Employee | null>(null);
 
   // Contract warnings
   const [expiringContracts, setExpiringContracts] = useState<ExpiringContractItem[]>(initialExpiringContracts);
@@ -181,6 +185,11 @@ export function EmployeesClient({
     setIsDetailModalOpen(true);
   };
 
+  const openDeleteModal = (emp: Employee) => {
+    setDeletingEmployee(emp);
+    setIsDeleteModalOpen(true);
+  };
+
   const handleToggleStatus = async (emp: Employee) => {
     const newStatus: EmployeeStatus = emp.status === 'active' ? 'inactive' : 'active';
     const actionText = newStatus === 'active' ? 'mengaktifkan kembali' : 'menonaktifkan';
@@ -218,32 +227,26 @@ export function EmployeesClient({
             <span className="text-slate-600">&bull;</span>
             <span className="text-xs text-slate-400">Database SDM Terpadu</span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
+          <h1 className="text-2xl font-bold text-white tracking-tight">
             Data Karyawan
           </h1>
-          <p className="text-xs sm:text-sm text-slate-400 mt-1">
-            Kelola profil lengkap, penempatan divisi, atasan langsung, nomor rekening, dan jadwal kerja.
+          <p className="text-xs text-slate-400 mt-1">
+            Kelola data induk SDM, struktur jabatan, perpanjangan kontrak, serta integrasi SSO &amp; biometric fingerprint.
           </p>
         </div>
 
-        <Button
-          onClick={openCreateModal}
-          size="sm"
-          className="bg-blue-600 hover:bg-blue-500 text-white flex items-center gap-2 self-start sm:self-auto shadow-lg shadow-blue-600/20 cursor-pointer"
-        >
-          <UserPlus className="w-4 h-4" />
-          <span>Tambah Karyawan Baru</span>
-        </Button>
+        <div className="flex items-center gap-3">
+          <Button
+            onClick={openCreateModal}
+            className="bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs px-4 py-2 rounded-xl flex items-center gap-2 shadow-lg shadow-blue-600/20 transition cursor-pointer"
+          >
+            <UserPlus className="w-4 h-4" />
+            <span>Tambah Karyawan Baru</span>
+          </Button>
+        </div>
       </div>
 
-      {/* Contract Expiration Alerts */}
-      <ContractAlertBox
-        expiringContracts={expiringContracts}
-        criticalCount={criticalCount}
-        warningCount={warningCount}
-      />
-
-      {/* 2. Top Metric Cards */}
+      {/* 2. Metrics & Warning Banners */}
       <EmployeeMetrics
         total={totalEmployees}
         active={activeCount}
@@ -251,7 +254,13 @@ export function EmployeesClient({
         inactive={inactiveCount}
       />
 
-      {/* 3. Filter Toolbar */}
+      <ContractAlertBox
+        expiringContracts={expiringContracts}
+        criticalCount={criticalCount}
+        warningCount={warningCount}
+      />
+
+      {/* 3. Filters Toolbar */}
       <EmployeeFilterToolbar
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
@@ -278,6 +287,7 @@ export function EmployeesClient({
         onOpenDetail={openDetailModal}
         onOpenEdit={openEditModal}
         onToggleStatus={handleToggleStatus}
+        onOpenDelete={openDeleteModal}
       />
 
       {/* 5. Pagination Controls */}
@@ -312,6 +322,16 @@ export function EmployeesClient({
         isOpen={isDetailModalOpen}
         onClose={() => setIsDetailModalOpen(false)}
         employee={viewingEmployee}
+        onOpenDelete={openDeleteModal}
+      />
+
+      {/* 8. Delete / Reset Claim Modal */}
+      <DeleteEmployeeModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        onSuccess={() => loadEmployeesData()}
+        employee={deletingEmployee}
+        currentEmployeeId={currentUser?.employeeId}
       />
     </div>
   );

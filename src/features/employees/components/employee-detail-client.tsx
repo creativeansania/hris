@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useTransition } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
   AlertCircle,
@@ -24,6 +25,7 @@ import {
   ContractType,
   LeaveBalance,
 } from '@/types/database';
+import { useCurrentUser } from '@/hooks/use-current-user';
 import { EmployeeProfileHeader } from './employee-profile-header';
 import { EmployeeStatsBanner } from './employee-stats-banner';
 import { EmployeePersonalTab } from './employee-personal-tab';
@@ -32,12 +34,15 @@ import { EmployeePositionsTab } from './employee-positions-tab';
 import { EmployeeAttendanceTab } from './employee-attendance-tab';
 import { AddContractModal } from './add-contract-modal';
 import { AddPositionModal } from './add-position-modal';
+import { DeleteEmployeeModal } from './delete-employee-modal';
 
 interface EmployeeDetailClientProps {
   employeeId: string;
 }
 
 export function EmployeeDetailClient({ employeeId }: EmployeeDetailClientProps) {
+  const router = useRouter();
+  const currentUser = useCurrentUser();
   const [isPending, startTransition] = useTransition();
 
   // Data states
@@ -58,8 +63,9 @@ export function EmployeeDetailClient({ employeeId }: EmployeeDetailClientProps) 
     'personal' | 'contracts' | 'positions' | 'attendance'
   >('personal');
 
-  // Modal States: Contract
+  // Modal States: Contract & Delete
   const [isContractModalOpen, setIsContractModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [contractType, setContractType] = useState<ContractType>('pkwt');
   const [contractStartDate, setContractStartDate] = useState('');
   const [contractEndDate, setContractEndDate] = useState('');
@@ -222,6 +228,7 @@ export function EmployeeDetailClient({ employeeId }: EmployeeDetailClientProps) 
       <EmployeeProfileHeader
         employee={employee}
         onOpenAddContract={openAddContractModal}
+        onOpenDelete={() => setIsDeleteModalOpen(true)}
       />
 
       {/* Quick Metrics Cards */}
@@ -341,6 +348,18 @@ export function EmployeeDetailClient({ employeeId }: EmployeeDetailClientProps) 
         mutationError={mutationError}
         isPending={isPending}
         onSubmit={handleAddPositionMutation}
+      />
+
+      {/* Delete / Reset Claim Modal */}
+      <DeleteEmployeeModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        onSuccess={() => {
+          router.push('/employees');
+          router.refresh();
+        }}
+        employee={employee}
+        currentEmployeeId={currentUser?.employeeId}
       />
     </div>
   );
