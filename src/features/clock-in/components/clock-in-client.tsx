@@ -267,7 +267,19 @@ export function ClockInClient() {
     setFeedback(null);
 
     const now = new Date();
-    const currentTimeStr = now.toLocaleTimeString('id-ID', { hour12: false });
+    const currentTimeStr = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Jakarta',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    }).format(now);
+    const todayWibStr = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Jakarta',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(now);
     const deviceInfo = `${navigator.userAgent}`;
     const isDeviceOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
 
@@ -288,7 +300,7 @@ export function ClockInClient() {
         setAttendance((prev: any) => ({
           ...(prev || {}),
           clock_in: currentTimeStr,
-          attendance_date: now.toISOString().split('T')[0],
+          attendance_date: todayWibStr,
           review_status: closestOfficeInfo?.isWithinRadius ? 'auto_valid' : 'pending_review',
           submitted_latitude: geoCoords.latitude,
           submitted_longitude: geoCoords.longitude,
@@ -394,7 +406,13 @@ export function ClockInClient() {
     setFeedback(null);
 
     const now = new Date();
-    const currentTimeStr = now.toLocaleTimeString('id-ID', { hour12: false });
+    const currentTimeStr = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Jakarta',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    }).format(now);
     const deviceInfo = `${navigator.userAgent}`;
     const isDeviceOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
 

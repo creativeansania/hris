@@ -11,7 +11,7 @@ import { AttendanceReviewStatus, GpsReviewItem } from '@/types/database';
 import { checkClockInRateLimit } from '@/lib/rate-limiter';
 import { sanitizeText } from '@/lib/security';
 import { logAuditEvent } from '@/lib/audit';
-import { getTodayWIB } from '@/lib/date-utils';
+import { getTodayWIB, getCurrentTimeWIB, getWIBDateParts } from '@/lib/date-utils';
 import { requireAuthRole, getAuthenticatedEmployee } from '@/lib/auth';
 import { getOfficeLocations } from '@/app/actions/locations';
 
@@ -149,17 +149,14 @@ export async function submitGpsClockIn(payload: GpsClockInPayload) {
     const isInsideRadius = closestResult.isWithinRadius;
     const reviewStatus: AttendanceReviewStatus = isInsideRadius ? 'auto_valid' : 'pending_review';
 
-    // 5. Calculate Current Time and Late Minutes
-    const now = punchDate;
-    const currentHours = String(now.getHours()).padStart(2, '0');
-    const currentMinutes = String(now.getMinutes()).padStart(2, '0');
-    const currentSeconds = String(now.getSeconds()).padStart(2, '0');
-    const currentTimeStr = `${currentHours}:${currentMinutes}:${currentSeconds}`;
+    // 5. Calculate Current Time and Late Minutes in Asia/Jakarta (WIB)
+    const currentTimeStr = getCurrentTimeWIB(punchDate);
+    const wibParts = getWIBDateParts(punchDate);
 
     // Sanitize input notes & append offline sync audit note if applicable
     let cleanNotes = sanitizeText(payload.notes);
     if (payload.recordedAt) {
-      const syncTimeStr = new Date().toLocaleTimeString('id-ID', { hour12: false });
+      const syncTimeStr = getCurrentTimeWIB(new Date());
       const offlineTag = `[Sync Offline PWA: Dicatat ${currentTimeStr}, sinkronisasi online ${syncTimeStr}]`;
       cleanNotes = cleanNotes ? `${offlineTag} ${cleanNotes}` : offlineTag;
     }
@@ -173,8 +170,8 @@ export async function submitGpsClockIn(payload: GpsClockInPayload) {
     }
 
     let lateMinutes = 0;
-    // Check schedule for today
-    const dayOfWeek = now.getDay(); // 0 = Sunday, 1 = Monday, ...
+    // Check schedule for today using WIB day of week
+    const dayOfWeek = wibParts.dayOfWeek;
     if (emp.work_schedule_id) {
       const { data: scheduleDay } = await client
         .from('work_schedule_days')
@@ -186,7 +183,7 @@ export async function submitGpsClockIn(payload: GpsClockInPayload) {
       if (scheduleDay && scheduleDay.start_time && !scheduleDay.is_day_off) {
         const [schH, schM] = scheduleDay.start_time.split(':').map(Number);
         const schMinutes = schH * 60 + schM;
-        const curMinutes = now.getHours() * 60 + now.getMinutes();
+        const curMinutes = wibParts.hour * 60 + wibParts.minute;
         if (curMinutes > schMinutes) {
           lateMinutes = curMinutes - schMinutes;
         }
@@ -212,7 +209,7 @@ export async function submitGpsClockIn(payload: GpsClockInPayload) {
       device_info: sanitizeText(payload.deviceInfo) || 'Web Browser',
       is_mock_location: payload.isMockLocation || false,
       late_reason: cleanNotes || null,
-      late_reason_filled_at: cleanNotes ? now.toISOString() : null,
+      late_reason_filled_at: cleanNotes ? punchDate.toISOString() : null,
     };
 
     const { data: inserted, error: insertError } = await client
@@ -329,16 +326,13 @@ export async function submitGpsClockOut(payload: GpsClockOutPayload) {
       };
     }
 
-    // 3. Compute clock out time and work minutes
-    const now = punchDate;
-    const currentHours = String(now.getHours()).padStart(2, '0');
-    const currentMinutes = String(now.getMinutes()).padStart(2, '0');
-    const currentSeconds = String(now.getSeconds()).padStart(2, '0');
-    const currentTimeStr = `${currentHours}:${currentMinutes}:${currentSeconds}`;
+    // 3. Compute clock out time and work minutes in Asia/Jakarta (WIB)
+    const currentTimeStr = getCurrentTimeWIB(punchDate);
+    const wibParts = getWIBDateParts(punchDate);
 
     const [inH, inM] = attendance.clock_in.split(':').map(Number);
     const inTotalMinutes = inH * 60 + inM;
-    const outTotalMinutes = now.getHours() * 60 + now.getMinutes();
+    const outTotalMinutes = wibParts.hour * 60 + wibParts.minute;
     const workMinutes = Math.max(0, outTotalMinutes - inTotalMinutes);
 
     // 4. Update attendance record

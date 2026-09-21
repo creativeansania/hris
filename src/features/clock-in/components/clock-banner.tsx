@@ -17,15 +17,22 @@ export function ClockBanner({ currentTime, attendance }: ClockBannerProps) {
             Waktu Server Indonesia (WIB)
           </span>
           <div className="text-4xl md:text-5xl font-black tracking-tight text-white font-mono mt-1">
-            {currentTime.toLocaleTimeString('id-ID', { hour12: false })}
+            {new Intl.DateTimeFormat('en-GB', {
+              timeZone: 'Asia/Jakarta',
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+              hour12: false,
+            }).format(currentTime)}
           </div>
           <p className="text-sm text-slate-400 mt-1 capitalize font-medium">
-            {currentTime.toLocaleDateString('id-ID', {
+            {new Intl.DateTimeFormat('id-ID', {
+              timeZone: 'Asia/Jakarta',
               weekday: 'long',
               day: 'numeric',
               month: 'long',
               year: 'numeric',
-            })}
+            }).format(currentTime)}
           </p>
         </div>
 
