@@ -1,6 +1,7 @@
 import React from 'react';
-import { Smartphone } from 'lucide-react';
+import { Smartphone, Laptop, CheckCircle2 } from 'lucide-react';
 import { TodayGpsAttendanceState } from '@/types/database';
+import { formatDeviceInfo } from '@/lib/device-parser';
 
 interface AttendanceAuditTrailProps {
   attendance: TodayGpsAttendanceState | null;
@@ -8,6 +9,8 @@ interface AttendanceAuditTrailProps {
 
 export function AttendanceAuditTrail({ attendance }: AttendanceAuditTrailProps) {
   if (!attendance) return null;
+
+  const formattedDevice = formatDeviceInfo(attendance.device_info as string | undefined);
 
   return (
     <div className="p-5 rounded-2xl bg-slate-900/40 border border-slate-800/80 space-y-3 text-xs">
@@ -31,7 +34,7 @@ export function AttendanceAuditTrail({ attendance }: AttendanceAuditTrailProps) 
         </span>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 font-mono text-[11px] text-slate-400">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 font-mono text-[11px] text-slate-400">
         <div>
           <span className="text-slate-500 block">Koordinat Tercatat:</span>
           <span className="text-white">
@@ -48,6 +51,12 @@ export function AttendanceAuditTrail({ attendance }: AttendanceAuditTrailProps) 
           <span className="text-slate-500 block">Akurasi GPS:</span>
           <span className="text-white">
             ±{Math.round(attendance.gps_accuracy_meters || 0)}m
+          </span>
+        </div>
+        <div>
+          <span className="text-slate-500 block">Perangkat:</span>
+          <span className="text-white truncate block" title={formattedDevice}>
+            {formattedDevice}
           </span>
         </div>
         <div>

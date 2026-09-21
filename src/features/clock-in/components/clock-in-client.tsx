@@ -27,6 +27,7 @@ import { GeoStatusCard } from './geo-status-card';
 import { ClockActionCard } from './clock-action-card';
 import { AttendanceAuditTrail } from './attendance-audit-trail';
 import { OfflineQueueCard } from './offline-queue-card';
+import { getClientDeviceSummary } from '@/lib/device-parser';
 
 const PRESET_REASONS = [
   'Meeting kunjungan klien di lokasi',
@@ -280,7 +281,7 @@ export function ClockInClient() {
       month: '2-digit',
       day: '2-digit',
     }).format(now);
-    const deviceInfo = `${navigator.userAgent}`;
+    const deviceInfo = getClientDeviceSummary();
     const isDeviceOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
 
     // Direct Offline Submission
@@ -413,7 +414,7 @@ export function ClockInClient() {
       second: '2-digit',
       hour12: false,
     }).format(now);
-    const deviceInfo = `${navigator.userAgent}`;
+    const deviceInfo = getClientDeviceSummary();
     const isDeviceOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
 
     // Direct Offline Submission

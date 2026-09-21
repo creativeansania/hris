@@ -458,9 +458,14 @@ export interface GpsReviewItem {
   clock_out: string | null;
   latitude: number | null;
   longitude: number | null;
+  submitted_latitude?: number | null;
+  submitted_longitude?: number | null;
   distance_meters?: number | null;
+  distance_to_office_meters?: number | null;
+  gps_accuracy_meters?: number | null;
   review_status?: AttendanceReviewStatus | string | null;
   notes?: string | null;
+  late_reason?: string | null;
   device_info?: string | null;
   is_mock_location?: boolean | null;
   employee?: {
@@ -599,6 +604,7 @@ export interface TodayGpsAttendanceState {
   late_reason?: string | null;
   late_minutes?: number | null;
   work_minutes?: number | null;
+  device_info?: string | null;
   created_at?: string;
   [key: string]: unknown;
 }

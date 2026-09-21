@@ -394,7 +394,7 @@ export async function getPendingGpsAttendanceList() {
           email,
           role,
           nik,
-          division:divisions(name)
+          division:divisions!employees_division_id_fkey(name)
         ),
         office:office_locations(
           name,
@@ -414,7 +414,15 @@ export async function getPendingGpsAttendanceList() {
       return { data: [], error: error.message };
     }
 
-    return { data: (data || []) as unknown as GpsReviewItem[], error: null };
+    const mapped = (data || []).map((row: any) => ({
+      ...row,
+      latitude: row.submitted_latitude ?? row.latitude,
+      longitude: row.submitted_longitude ?? row.longitude,
+      distance_meters: row.distance_to_office_meters ?? row.distance_meters,
+      notes: row.late_reason ?? row.notes,
+    }));
+
+    return { data: mapped as unknown as GpsReviewItem[], error: null };
   } catch (err: unknown) {
     return { data: [], error: err instanceof Error ? err.message : 'Gagal memuat daftar review GPS' };
   }
@@ -441,12 +449,21 @@ export async function reviewGpsAttendance(
         review_status: decision,
         reviewed_by: reviewerId,
         reviewed_at: new Date().toISOString(),
+        ...(decision === 'rejected' ? { is_absent: true } : { is_absent: false }),
       })
       .eq('id', attendanceId);
 
     if (error) {
       return { success: false, error: error.message };
     }
+
+    await logAuditEvent({
+      actorId: reviewerId,
+      action: decision === 'approved' ? 'approve_gps_attendance' : 'reject_gps_attendance',
+      entityType: 'attendance',
+      entityId: attendanceId,
+      metadata: { decision, notes },
+    });
 
     revalidatePath('/attendance-management');
     revalidatePath('/my-attendance');
