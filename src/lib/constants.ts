@@ -110,10 +110,14 @@ export const NAVIGATION_ITEMS = [
     icon: 'Sliders',
     roles: ['admin', 'hr'] as EmployeeRole[],
   },
-  {
-    title: 'UAT & Go-Live',
-    href: '/uat',
-    icon: 'ClipboardCheck',
-    roles: ['admin', 'management', 'hr'] as EmployeeRole[],
-  },
+  ...(process.env.NODE_ENV === 'development'
+    ? [
+        {
+          title: 'UAT & Go-Live',
+          href: '/uat',
+          icon: 'ClipboardCheck',
+          roles: ['admin', 'management', 'hr'] as EmployeeRole[],
+        },
+      ]
+    : []),
 ];

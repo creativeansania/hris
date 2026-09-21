@@ -23,9 +23,9 @@ export default function DashboardLayout({
     isPlaceholder: isPlaceholderEnv,
   } = useCurrentUser();
 
-  const userRole: EmployeeRole = currentUserRole || 'admin';
-  const userName = currentUserName || 'Developer Admin';
-  const userEmail = currentUserEmail || 'admin@hris.internal';
+  const userRole: EmployeeRole = currentUserRole || 'staff';
+  const userName = currentUserName || 'Karyawan';
+  const userEmail = currentUserEmail || '';
 
   const [dismissPlaceholder, setDismissPlaceholder] = useState(false);
   const [unauthorizedWarning, setUnauthorizedWarning] = useState<{

@@ -16,9 +16,9 @@ interface TopbarProps {
 }
 
 export function Topbar({
-  userName = 'Administrator',
-  userEmail = 'admin@company.com',
-  userRole = 'admin',
+  userName = 'Karyawan',
+  userEmail = '',
+  userRole = 'staff',
   onMobileMenuToggle,
 }: TopbarProps) {
   const [isOnline, setIsOnline] = useState(true);

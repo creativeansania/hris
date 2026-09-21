@@ -173,15 +173,17 @@ export function LoginCard() {
           )}
         </button>
 
-        {/* Development preview bypass */}
-        <div className="pt-2 text-center">
-          <a
-            href="/dashboard?dev=1"
-            className="text-[11px] text-slate-500 hover:text-slate-400 underline underline-offset-4 transition"
-          >
-            Pratinjau Dashboard Shell (Mode Pengembangan) &rarr;
-          </a>
-        </div>
+        {/* Development preview bypass (only in local development) */}
+        {process.env.NODE_ENV === 'development' && (
+          <div className="pt-2 text-center">
+            <a
+              href="/dashboard?dev=1"
+              className="text-[11px] text-slate-500 hover:text-slate-400 underline underline-offset-4 transition"
+            >
+              Pratinjau Dashboard Shell (Mode Pengembangan) &rarr;
+            </a>
+          </div>
+        )}
       </div>
 
       {/* Security notice footnote */}
