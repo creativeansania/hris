@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { getAdminClient } from '@/lib/supabase/admin';
 import { Employee, EmployeeRole } from '@/types/database';
 import { SupabaseClient } from '@supabase/supabase-js';
 
@@ -31,10 +32,12 @@ export async function getCurrentEmployee(): Promise<Employee | null> {
   const { data: { user }, error: userError } = await supabase.auth.getUser();
   if (userError || !user) return null;
 
-  const { data: employee, error: empError } = await supabase
+  const admin = getAdminClient();
+  const client = admin || supabase;
+  const { data: employee, error: empError } = await client
     .from('employees')
     .select('*')
-    .eq('auth_user_id', user.id)
+    .or(`auth_user_id.eq.${user.id},email.ilike.${user.email}`)
     .maybeSingle();
 
   if (empError || !employee) return null;

@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import { EmployeeRole } from '@/types/database';
 import { NAVIGATION_ITEMS } from '@/lib/constants';
+import { getAdminClient } from '@/lib/supabase/admin';
 
 // Dynamically derive restricted routes from NAVIGATION_ITEMS (single source of truth)
 const ALL_ROLES_COUNT = 6;
@@ -93,10 +94,13 @@ export async function proxy(request: NextRequest) {
     );
 
     if (matchingRestriction) {
-      const { data: emp } = await supabase
+      const adminClient = getAdminClient();
+      const client = adminClient || supabase;
+
+      const { data: emp } = await client
         .from('employees')
         .select('role')
-        .eq('auth_user_id', user.id)
+        .or(`auth_user_id.eq.${user.id},email.ilike.${user.email}`)
         .maybeSingle();
 
       const userRole: EmployeeRole = (emp?.role as EmployeeRole) || 'staff';

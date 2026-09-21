@@ -12,6 +12,7 @@ import {
 import { sanitizePostgrestSearch } from '@/lib/security';
 import { requireAuthRole } from '@/lib/auth';
 import { getTodayWIB } from '@/lib/date-utils';
+import { createClient } from '@/lib/supabase/server';
 
 export interface GetEmployeesFilter {
   search?: string;
@@ -343,5 +344,46 @@ export async function setEmployeeStatus(id: string, status: EmployeeStatus) {
     return { success: true, error: null };
   } catch (err: unknown) {
     return { success: false, error: err instanceof Error ? err.message : 'Gagal mengubah status' };
+  }
+}
+
+/**
+ * Resolves the authenticated user and their employee profile using the server action client.
+ * Bypasses RLS stack depth issues and directly returns the resolved role, employee id, and name.
+ */
+export async function getCurrentUserEmployee(): Promise<{
+  user: { id: string; email?: string } | null;
+  employee: Employee | null;
+}> {
+  try {
+    const serverClient = await createClient();
+    const {
+      data: { user },
+      error: userError,
+    } = await serverClient.auth.getUser();
+
+    if (userError || !user) {
+      return { user: null, employee: null };
+    }
+
+    const client = await getActionClient();
+    const { data: emp, error: empError } = await client
+      .from('employees')
+      .select('id, full_name, role, email, status, photo_url, division_id')
+      .or(`auth_user_id.eq.${user.id},email.ilike.${user.email}`)
+      .maybeSingle();
+
+    if (empError) {
+      console.error('[getCurrentUserEmployee] Error querying employee:', empError);
+      return { user: { id: user.id, email: user.email }, employee: null };
+    }
+
+    return {
+      user: { id: user.id, email: user.email },
+      employee: (emp as Employee) || null,
+    };
+  } catch (err) {
+    console.error('[getCurrentUserEmployee] Unexpected error:', err);
+    return { user: null, employee: null };
   }
 }
