@@ -5,7 +5,18 @@ import { revalidatePath } from 'next/cache';
 import { RequestType, RequestCategory, GenderType, MaritalStatusType } from '@/types/database';
 import { requireAuthRole } from '@/lib/auth';
 
+// In-memory cache for request types (60s TTL)
+let requestTypesCache: { data: RequestType[]; expiresAt: number } | null = null;
+
+export async function invalidateRequestTypesCache() {
+  requestTypesCache = null;
+}
+
 export async function getRequestTypes(): Promise<{ data: RequestType[]; error: string | null }> {
+  if (requestTypesCache && Date.now() < requestTypesCache.expiresAt) {
+    return { data: requestTypesCache.data, error: null };
+  }
+
   try {
     const supabase = await getActionClient();
     const { data, error } = await supabase
@@ -14,7 +25,9 @@ export async function getRequestTypes(): Promise<{ data: RequestType[]; error: s
       .order('sort_order', { ascending: true });
 
     if (error) return { data: [], error: error.message };
-    return { data: (data as RequestType[]) || [], error: null };
+    const result = (data as RequestType[]) || [];
+    requestTypesCache = { data: result, expiresAt: Date.now() + 60_000 };
+    return { data: result, error: null };
   } catch (err: unknown) {
     return { data: [], error: err instanceof Error ? err.message : 'Gagal mengambil jenis pengajuan' };
   }
@@ -63,6 +76,7 @@ export async function updateRequestType(
       .eq('id', id);
 
     if (error) return { success: false, error: error.message };
+    invalidateRequestTypesCache();
     revalidatePath('/settings/request-types');
     return { success: true, error: null };
   } catch (err: unknown) {
@@ -83,6 +97,7 @@ export async function toggleRequestTypeStatus(id: string, is_active: boolean) {
       .eq('id', id);
 
     if (error) return { success: false, error: error.message };
+    invalidateRequestTypesCache();
     revalidatePath('/settings/request-types');
     return { success: true, error: null };
   } catch (err: unknown) {

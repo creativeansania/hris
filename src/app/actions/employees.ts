@@ -44,7 +44,11 @@ export async function getEmployees(
 
     let query = client
       .from('employees')
-      .select('*', { count: 'exact' })
+      .select(`
+        *,
+        division:divisions!employees_division_id_fkey(id, name),
+        spv:employees!employees_spv_id_fkey(id, full_name, email)
+      `, { count: 'exact' })
       .order('created_at', { ascending: false });
 
     if (filter.role && filter.role !== 'all') {
@@ -88,26 +92,10 @@ export async function getEmployees(
     const total = count ?? (rawEmployees || []).length;
     const totalPages = shouldPaginate ? Math.ceil(total / pageSize) : 1;
 
-    // Fetch related divisions and spv data in bulk
-    const divisionIds = Array.from(new Set((rawEmployees || []).map((e) => e.division_id).filter(Boolean)));
-    const spvIds = Array.from(new Set((rawEmployees || []).map((e) => e.spv_id).filter(Boolean)));
-
-    let divisionsMap: Record<string, { id: string; name: string }> = {};
-    if (divisionIds.length > 0) {
-      const { data: divs } = await client.from('divisions').select('id, name').in('id', divisionIds);
-      if (divs) divs.forEach((d) => { divisionsMap[d.id] = d; });
-    }
-
-    let spvMap: Record<string, { id: string; full_name: string; email: string }> = {};
-    if (spvIds.length > 0) {
-      const { data: spvs } = await client.from('employees').select('id, full_name, email').in('id', spvIds);
-      if (spvs) spvs.forEach((s) => { spvMap[s.id] = s; });
-    }
-
     const merged = (rawEmployees || []).map((e) => ({
       ...e,
-      division: e.division_id ? divisionsMap[e.division_id] || null : null,
-      spv: e.spv_id ? spvMap[e.spv_id] || null : null,
+      division: e.division || null,
+      spv: e.spv || null,
     }));
 
     return {

@@ -36,7 +36,7 @@ const PRESET_REASONS = [
 ];
 
 export function ClockInClient() {
-  const { email: currentUserEmail } = useCurrentUser();
+  const { email: currentUserEmail, isLoading: isAuthLoading } = useCurrentUser();
 
   // Current time state
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
@@ -193,6 +193,7 @@ export function ClockInClient() {
   }, [currentUserEmail, loadOfflineQueue]);
 
   useEffect(() => {
+    if (isAuthLoading) return;
     loadStatus();
 
     const handleOnline = () => {

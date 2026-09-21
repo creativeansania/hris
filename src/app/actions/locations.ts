@@ -5,7 +5,18 @@ import { revalidatePath } from 'next/cache';
 import { OfficeLocation } from '@/types/database';
 import { requireAuthRole } from '@/lib/auth';
 
+// In-memory cache for office locations (60s TTL)
+let locationsCache: { data: OfficeLocation[]; expiresAt: number } | null = null;
+
+export async function invalidateLocationsCache() {
+  locationsCache = null;
+}
+
 export async function getOfficeLocations(): Promise<{ data: OfficeLocation[]; error: string | null }> {
+  if (locationsCache && Date.now() < locationsCache.expiresAt) {
+    return { data: locationsCache.data, error: null };
+  }
+
   try {
     const client = await getActionClient();
     const { data, error } = await client
@@ -14,7 +25,9 @@ export async function getOfficeLocations(): Promise<{ data: OfficeLocation[]; er
       .order('name', { ascending: true });
 
     if (error) return { data: [], error: error.message };
-    return { data: (data as OfficeLocation[]) || [], error: null };
+    const result = (data as OfficeLocation[]) || [];
+    locationsCache = { data: result, expiresAt: Date.now() + 60_000 };
+    return { data: result, error: null };
   } catch (err: unknown) {
     return { data: [], error: err instanceof Error ? err.message : 'Gagal mengambil data lokasi kantor' };
   }
@@ -43,6 +56,7 @@ export async function createOfficeLocation(formData: {
     });
 
     if (error) return { success: false, error: error.message };
+    invalidateLocationsCache();
     revalidatePath('/settings/locations');
     return { success: true, error: null };
   } catch (err: unknown) {
@@ -81,6 +95,7 @@ export async function updateOfficeLocation(
       .eq('id', id);
 
     if (error) return { success: false, error: error.message };
+    invalidateLocationsCache();
     revalidatePath('/settings/locations');
     return { success: true, error: null };
   } catch (err: unknown) {
@@ -98,6 +113,7 @@ export async function deleteOfficeLocation(id: string) {
     const { error } = await client.from('office_locations').delete().eq('id', id);
     if (error) return { success: false, error: error.message };
 
+    invalidateLocationsCache();
     revalidatePath('/settings/locations');
     return { success: true, error: null };
   } catch (err: unknown) {

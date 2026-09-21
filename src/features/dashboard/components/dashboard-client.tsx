@@ -20,7 +20,7 @@ import { EmployeeRosterTable } from './employee-roster-table';
 
 export function DashboardClient() {
   const [isPending, startTransition] = useTransition();
-  const { email: rawUserEmail } = useCurrentUser();
+  const { email: rawUserEmail, isLoading: isAuthLoading } = useCurrentUser();
   const userEmail = rawUserEmail || '';
 
   // Filter States
@@ -66,8 +66,10 @@ export function DashboardClient() {
   };
 
   useEffect(() => {
+    // If auth state is actively loading from storage/network, wait until resolved to avoid double-querying
+    if (isAuthLoading) return;
     loadMetrics(selectedMonth, selectedYear, selectedDivision, userEmail);
-  }, [selectedMonth, selectedYear, selectedDivision, userEmail]);
+  }, [selectedMonth, selectedYear, selectedDivision, userEmail, isAuthLoading]);
 
   const selectedDivisionObj = metrics?.divisionsList.find(
     (d) => d.id === selectedDivision

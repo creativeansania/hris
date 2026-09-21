@@ -61,8 +61,18 @@ export function EmployeeRosterTable({
           description="Tidak ditemukan data presensi karyawan yang sesuai dengan kriteria pencarian."
         />
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-slate-800/60">
-          <table className="w-full text-left text-xs text-slate-300 border-collapse">
+        <div>
+          <div className="sm:hidden flex items-center justify-between text-[11px] text-slate-400 mb-2 px-1">
+            <span className="flex items-center gap-1">
+              <span>👉</span>
+              <span>Geser tabel untuk detail lengkap</span>
+            </span>
+            <span className="font-mono text-[10px] text-slate-500">
+              {filteredRows.length} data
+            </span>
+          </div>
+          <div className="overflow-x-auto rounded-xl border border-slate-800/60">
+            <table className="w-full min-w-[700px] text-left text-xs text-slate-300 border-collapse">
             <thead className="bg-slate-900/90 text-slate-400 uppercase font-mono text-[11px] border-b border-slate-800">
               <tr>
                 <th className="px-4 py-3">Karyawan</th>
@@ -158,6 +168,7 @@ export function EmployeeRosterTable({
               ))}
             </tbody>
           </table>
+        </div>
         </div>
       )}
     </Card>

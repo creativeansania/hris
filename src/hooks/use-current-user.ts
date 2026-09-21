@@ -15,12 +15,35 @@ export interface CurrentUserData {
   isPlaceholder: boolean;
 }
 
+const CACHE_KEY = 'hris_user_profile_cache';
+
+function getStoredCache(): Omit<CurrentUserData, 'isLoading'> | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = sessionStorage.getItem(CACHE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return null;
+}
+
+function setStoredCache(data: Omit<CurrentUserData, 'isLoading'> | null) {
+  if (typeof window === 'undefined') return;
+  try {
+    if (data) sessionStorage.setItem(CACHE_KEY, JSON.stringify(data));
+    else sessionStorage.removeItem(CACHE_KEY);
+  } catch {}
+}
+
 // Module-level cache to avoid multiple redundant network requests across components
 let cachedUserData: Omit<CurrentUserData, 'isLoading'> | null = null;
 let pendingFetch: Promise<Omit<CurrentUserData, 'isLoading'>> | null = null;
 
 async function fetchUserData(): Promise<Omit<CurrentUserData, 'isLoading'>> {
   if (cachedUserData) return cachedUserData;
+  const stored = getStoredCache();
+  if (stored) {
+    cachedUserData = stored;
+  }
   if (pendingFetch) return pendingFetch;
 
   pendingFetch = (async () => {
@@ -42,6 +65,7 @@ async function fetchUserData(): Promise<Omit<CurrentUserData, 'isLoading'>> {
       const { user, employee: emp } = await getCurrentUserEmployee();
 
       if (!user) {
+        setStoredCache(null);
         return {
           user: null,
           email: null,
@@ -72,6 +96,7 @@ async function fetchUserData(): Promise<Omit<CurrentUserData, 'isLoading'>> {
         isPlaceholder: false,
       };
 
+      setStoredCache(cachedUserData);
       return cachedUserData;
     } catch (err) {
       console.error('[useCurrentUser] Failed to fetch current user:', err);
@@ -93,8 +118,10 @@ async function fetchUserData(): Promise<Omit<CurrentUserData, 'isLoading'>> {
 
 export function useCurrentUser(): CurrentUserData {
   const [data, setData] = useState<CurrentUserData>(() => {
-    if (cachedUserData) {
-      return { ...cachedUserData, isLoading: false };
+    const stored = cachedUserData || getStoredCache();
+    if (stored) {
+      cachedUserData = stored;
+      return { ...stored, isLoading: false };
     }
     return {
       user: null,
@@ -127,4 +154,5 @@ export function useCurrentUser(): CurrentUserData {
 export function clearUserCache() {
   cachedUserData = null;
   pendingFetch = null;
+  setStoredCache(null);
 }

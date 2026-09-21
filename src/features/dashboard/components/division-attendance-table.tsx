@@ -42,7 +42,7 @@ export function DivisionAttendanceTable({ divisions }: DivisionAttendanceTablePr
                 />
               </div>
 
-              <div className="mt-2.5 flex items-center justify-between text-[11px] text-slate-400 font-mono">
+              <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-400 font-mono">
                 <span>Hadir: {div.presentDays} hari</span>
                 <span className="text-amber-400/90">
                   Telat: {div.lateDays}x ({div.totalLateMinutes} mnt)

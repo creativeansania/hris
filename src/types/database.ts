@@ -626,7 +626,6 @@ export interface CurrentGpsEmployee {
   email: string;
   role?: string;
   work_schedule_id?: string | null;
-  [key: string]: unknown;
 }
 
 

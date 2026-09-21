@@ -44,8 +44,8 @@ export function DashboardFilterStrip({
 
   return (
     <div className="bg-[#111827]/70 backdrop-blur-md border border-slate-800/80 rounded-xl p-3 sm:p-4 flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center justify-between gap-3 shadow-sm">
-      <div className="flex flex-wrap items-center gap-2.5">
-        <div className="flex items-center gap-1.5 text-xs text-slate-400 font-medium">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-1.5 text-xs text-slate-400 font-medium w-full sm:w-auto mb-1 sm:mb-0">
           <Filter className="w-3.5 h-3.5 text-blue-400" />
           <span>Filter Data:</span>
         </div>
@@ -54,7 +54,7 @@ export function DashboardFilterStrip({
         <select
           value={selectedMonth}
           onChange={(e) => onMonthChange(Number(e.target.value))}
-          className="bg-slate-900 border border-slate-700/80 text-xs text-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:border-blue-500"
+          className="bg-slate-900 border border-slate-700/80 text-xs text-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-blue-500 flex-1 sm:flex-none min-w-[110px]"
         >
           {months.map((m) => (
             <option key={m.value} value={m.value}>
@@ -67,7 +67,7 @@ export function DashboardFilterStrip({
         <select
           value={selectedYear}
           onChange={(e) => onYearChange(Number(e.target.value))}
-          className="bg-slate-900 border border-slate-700/80 text-xs text-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:border-blue-500"
+          className="bg-slate-900 border border-slate-700/80 text-xs text-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-blue-500 min-w-[80px]"
         >
           {years.map((y) => (
             <option key={y} value={y}>
@@ -80,7 +80,7 @@ export function DashboardFilterStrip({
         <select
           value={selectedDivision}
           onChange={(e) => onDivisionChange(e.target.value)}
-          className="bg-slate-900 border border-slate-700/80 text-xs text-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:border-blue-500 max-w-[200px]"
+          className="bg-slate-900 border border-slate-700/80 text-xs text-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-blue-500 w-full sm:w-auto flex-1 sm:flex-none max-w-full sm:max-w-[200px]"
         >
           <option value="all">Semua Divisi</option>
           {divisions.map((div) => (
@@ -92,31 +92,31 @@ export function DashboardFilterStrip({
       </div>
 
       {/* Dual-Perspective Switcher */}
-      <div className="flex items-center bg-slate-900 p-1 rounded-lg border border-slate-800 self-start sm:self-auto">
+      <div className="flex items-center bg-slate-900 p-1 rounded-lg border border-slate-800 w-full sm:w-auto">
         <button
           type="button"
           onClick={() => onTabChange('hr')}
-          className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all flex items-center gap-1.5 ${
+          className={`flex-1 sm:flex-none justify-center px-3 py-1.5 text-xs font-medium rounded-md transition-all flex items-center gap-1.5 ${
             activeTab === 'hr'
               ? 'bg-blue-600 text-white shadow-sm'
               : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
           }`}
         >
           <Users className="w-3.5 h-3.5" />
-          <span>Operasional SDM (HR)</span>
+          <span>Operasional SDM</span>
         </button>
 
         <button
           type="button"
           onClick={() => onTabChange('management')}
-          className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all flex items-center gap-1.5 ${
+          className={`flex-1 sm:flex-none justify-center px-3 py-1.5 text-xs font-medium rounded-md transition-all flex items-center gap-1.5 ${
             activeTab === 'management'
               ? 'bg-purple-600 text-white shadow-sm'
               : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
           }`}
         >
           <DollarSign className="w-3.5 h-3.5" />
-          <span>Executive & Biaya</span>
+          <span>Biaya & Gaji</span>
         </button>
       </div>
     </div>

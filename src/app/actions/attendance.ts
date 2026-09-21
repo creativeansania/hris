@@ -425,12 +425,8 @@ export async function getMyAttendanceHistory(employeeEmail?: string, month?: num
   try {
     const client = await getActionClient();
 
-    // Find employee by email (or first admin if dev preview)
-    let empQuery = client.from('employees').select('id, full_name, email');
-    if (employeeEmail) {
-      empQuery = empQuery.ilike('email', employeeEmail.trim());
-    }
-    const { data: emp } = await empQuery.limit(1).maybeSingle();
+    // Resolve authenticated employee (cached)
+    const emp = await getAuthenticatedEmployee(client, employeeEmail);
 
     if (!emp) {
       return { employee: null, data: [], summary: null, error: 'Data karyawan tidak ditemukan' };

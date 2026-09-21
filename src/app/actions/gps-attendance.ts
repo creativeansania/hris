@@ -12,7 +12,8 @@ import { checkClockInRateLimit } from '@/lib/rate-limiter';
 import { sanitizeText } from '@/lib/security';
 import { logAuditEvent } from '@/lib/audit';
 import { getTodayWIB } from '@/lib/date-utils';
-import { requireAuthRole } from '@/lib/auth';
+import { requireAuthRole, getAuthenticatedEmployee } from '@/lib/auth';
+import { getOfficeLocations } from '@/app/actions/locations';
 
 export interface GpsClockInPayload {
   employeeEmail?: string;
@@ -38,20 +39,19 @@ export async function getTodayGpsStatus(employeeEmail?: string) {
   try {
     const client = await getActionClient();
 
-    // 1. Resolve employee
-    let empQuery = client.from('employees').select('id, full_name, email, role, work_schedule_id');
-    if (employeeEmail) {
-      empQuery = empQuery.ilike('email', employeeEmail.trim());
-    }
-    const { data: emp, error: empError } = await empQuery.limit(1).maybeSingle();
+    // 1. Resolve employee and active office locations in parallel (using caches)
+    const [emp, { data: locations }] = await Promise.all([
+      getAuthenticatedEmployee(client, employeeEmail),
+      getOfficeLocations(),
+    ]);
 
-    if (empError || !emp) {
+    if (!emp) {
       return { employee: null, attendance: null, officeLocations: [], error: 'Karyawan tidak ditemukan' };
     }
 
     // 2. Fetch today's attendance (source = app_fallback)
     const today = getTodayWIB();
-    const { data: attendance, error: attError } = await client
+    const { data: attendance } = await client
       .from('attendance')
       .select('*, office:office_locations(name, address, radius_meters)')
       .eq('employee_id', emp.id)
@@ -59,16 +59,10 @@ export async function getTodayGpsStatus(employeeEmail?: string) {
       .eq('source', 'app_fallback')
       .maybeSingle();
 
-    // 3. Fetch active office locations
-    const { data: locations } = await client
-      .from('office_locations')
-      .select('id, name, address, latitude, longitude, radius_meters, is_active')
-      .eq('is_active', true);
-
     return {
       employee: emp,
       attendance: attendance || null,
-      officeLocations: (locations as OfficeLocationGeo[]) || [],
+      officeLocations: ((locations || []).filter((l) => l.is_active) as OfficeLocationGeo[]) || [],
       error: null,
     };
   } catch (err: unknown) {

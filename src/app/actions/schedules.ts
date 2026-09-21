@@ -14,7 +14,18 @@ export interface ScheduleDayInput {
   late_tolerance_minutes?: number;
 }
 
+// In-memory cache for schedule groups (60s TTL)
+let schedulesCache: { data: any[]; expiresAt: number } | null = null;
+
+export async function invalidateSchedulesCache() {
+  schedulesCache = null;
+}
+
 export async function getScheduleGroups() {
+  if (schedulesCache && Date.now() < schedulesCache.expiresAt) {
+    return { data: schedulesCache.data, error: null };
+  }
+
   try {
     const client = await getActionClient();
 
@@ -35,6 +46,7 @@ export async function getScheduleGroups() {
       days: (days || []).filter((d) => d.group_id === g.id),
     }));
 
+    schedulesCache = { data: merged, expiresAt: Date.now() + 60_000 };
     return { data: merged, error: null };
   } catch (err: unknown) {
     return { data: [], error: err instanceof Error ? err.message : 'Gagal mengambil jadwal kerja' };
@@ -103,6 +115,7 @@ export async function saveScheduleGroup(
       if (daysError) return { success: false, error: daysError.message };
     }
 
+    invalidateSchedulesCache();
     revalidatePath('/settings/schedules');
     revalidatePath('/employees');
     return { success: true, error: null, id: targetGroupId };
@@ -137,6 +150,7 @@ export async function deleteScheduleGroup(groupId: string) {
 
     if (error) return { success: false, error: error.message };
 
+    invalidateSchedulesCache();
     revalidatePath('/settings/schedules');
     return { success: true, error: null };
   } catch (err: unknown) {

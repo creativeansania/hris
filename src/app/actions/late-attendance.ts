@@ -3,7 +3,7 @@
 import { getActionClient } from '@/lib/supabase/action-client';
 import { revalidatePath } from 'next/cache';
 import { getTodayWIB, getWIBDateParts } from '@/lib/date-utils';
-import { requireAuthRole } from '@/lib/auth';
+import { requireAuthRole, getAuthenticatedEmployee } from '@/lib/auth';
 import {
   IzinTelatItem,
   LateAccumulationItem,
@@ -18,13 +18,10 @@ export async function checkCanApplyIzinTelat(employeeEmail?: string) {
   try {
     const client = await getActionClient();
 
-    let empQuery = client.from('employees').select('id, full_name, email, role, work_schedule_id');
-    if (employeeEmail) {
-      empQuery = empQuery.ilike('email', employeeEmail.trim());
-    }
-    const { data: emp, error: empError } = await empQuery.limit(1).maybeSingle();
+    // Resolve authenticated employee (cached)
+    const emp = await getAuthenticatedEmployee(client, employeeEmail);
 
-    if (empError || !emp) {
+    if (!emp) {
       return {
         canApply: false,
         employee: null,
@@ -231,11 +228,8 @@ export async function getMyIzinTelatHistory(employeeEmail?: string) {
   try {
     const client = await getActionClient();
 
-    let empQuery = client.from('employees').select('id');
-    if (employeeEmail) {
-      empQuery = empQuery.ilike('email', employeeEmail.trim());
-    }
-    const { data: emp } = await empQuery.limit(1).maybeSingle();
+    // Resolve authenticated employee (cached)
+    const emp = await getAuthenticatedEmployee(client, employeeEmail);
 
     if (!emp) return { data: [], error: 'Karyawan tidak ditemukan' };
 
@@ -531,18 +525,28 @@ export async function getMyLateAccumulation(employeeEmail?: string, year?: numbe
   try {
     const client = await getActionClient();
 
-    let empQuery = client.from('employees').select('id');
-    if (employeeEmail) {
-      empQuery = empQuery.ilike('email', employeeEmail.trim());
-    }
-    const { data: emp } = await empQuery.limit(1).maybeSingle();
+    // Resolve authenticated employee (cached)
+    const emp = await getAuthenticatedEmployee(client, employeeEmail);
 
     if (!emp) return { data: null, error: 'Karyawan tidak ditemukan' };
 
     const currentYear = year || new Date().getFullYear();
     const currentMonth = month || new Date().getMonth() + 1;
 
-    // Ensure up-to-date calculation
+    // Fast-path: Check if accumulation record already exists for this month
+    const { data: existing } = await client
+      .from('late_accumulations')
+      .select('*')
+      .eq('employee_id', emp.id)
+      .eq('year', currentYear)
+      .eq('month', currentMonth)
+      .maybeSingle();
+
+    if (existing) {
+      return { data: existing, error: null };
+    }
+
+    // Fallback: Calculate only when record doesn't exist yet
     await calculateMonthlyLateAccumulation(emp.id, currentYear, currentMonth);
 
     const { data, error } = await client

@@ -93,10 +93,21 @@ export async function seedDefaultPayrollRules() {
 /**
  * Retrieves all payroll rules.
  */
+// In-memory cache for payroll rules (60s TTL)
+let payrollRulesCache: { data: PayrollRule[]; expiresAt: number } | null = null;
+
+export async function invalidatePayrollRulesCache() {
+  payrollRulesCache = null;
+}
+
 export async function getPayrollRules(): Promise<{
   data: PayrollRule[];
   error: string | null;
 }> {
+  if (payrollRulesCache && Date.now() < payrollRulesCache.expiresAt) {
+    return { data: payrollRulesCache.data, error: null };
+  }
+
   try {
     const client = await getActionClient();
 
@@ -117,7 +128,9 @@ export async function getPayrollRules(): Promise<{
     }
 
     if (error) return { data: [], error: error.message };
-    return { data: (data as PayrollRule[]) || [], error: null };
+    const result = (data as PayrollRule[]) || [];
+    payrollRulesCache = { data: result, expiresAt: Date.now() + 60_000 };
+    return { data: result, error: null };
   } catch (err: unknown) {
     return {
       data: [],
@@ -153,6 +166,7 @@ export async function updatePayrollRule(
 
     if (error) return { success: false, error: error.message };
 
+    invalidatePayrollRulesCache();
     revalidatePath('/payroll');
     return { success: true, message: `Aturan ${ruleKey} berhasil diperbarui.` };
   } catch (err: unknown) {

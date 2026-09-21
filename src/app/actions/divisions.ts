@@ -5,7 +5,18 @@ import { revalidatePath } from 'next/cache';
 import { Division } from '@/types/database';
 import { requireAuthRole } from '@/lib/auth';
 
+// In-memory cache for divisions (60s TTL)
+let divisionsCache: { data: Division[]; expiresAt: number } | null = null;
+
+export async function invalidateDivisionsCache() {
+  divisionsCache = null;
+}
+
 export async function getDivisions(): Promise<{ data: Division[]; error: string | null }> {
+  if (divisionsCache && Date.now() < divisionsCache.expiresAt) {
+    return { data: divisionsCache.data, error: null };
+  }
+
   try {
     const client = await getActionClient();
     const { data, error } = await client
@@ -39,7 +50,9 @@ export async function getDivisions(): Promise<{ data: Division[]; error: string 
       kepala_divisi: d.kepala_divisi_id ? employeesMap[d.kepala_divisi_id] || null : null,
     }));
 
-    return { data: merged as Division[], error: null };
+    const result = merged as Division[];
+    divisionsCache = { data: result, expiresAt: Date.now() + 60_000 };
+    return { data: result, error: null };
   } catch (err: unknown) {
     return { data: [], error: err instanceof Error ? err.message : 'Gagal mengambil data divisi' };
   }
@@ -62,6 +75,7 @@ export async function createDivision(formData: {
     });
 
     if (error) return { success: false, error: error.message };
+    invalidateDivisionsCache();
     revalidatePath('/settings/divisions');
     revalidatePath('/employees');
     return { success: true, error: null };
@@ -95,6 +109,7 @@ export async function updateDivision(
       .eq('id', id);
 
     if (error) return { success: false, error: error.message };
+    invalidateDivisionsCache();
     revalidatePath('/settings/divisions');
     revalidatePath('/employees');
     return { success: true, error: null };
@@ -125,6 +140,7 @@ export async function deleteDivision(id: string) {
     const { error } = await client.from('divisions').delete().eq('id', id);
     if (error) return { success: false, error: error.message };
 
+    invalidateDivisionsCache();
     revalidatePath('/settings/divisions');
     return { success: true, error: null };
   } catch (err: unknown) {

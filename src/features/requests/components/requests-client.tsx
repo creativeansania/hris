@@ -25,7 +25,7 @@ export function RequestsClient() {
   const [isPending, startTransition] = useTransition();
 
   // User from auth hook
-  const { email: hookEmail } = useCurrentUser();
+  const { email: hookEmail, isLoading: isAuthLoading } = useCurrentUser();
   const currentUserEmail = hookEmail || '';
 
   // Data states
@@ -99,8 +99,9 @@ export function RequestsClient() {
   }, [statusFilter, categoryFilter, currentUserEmail]);
 
   useEffect(() => {
+    if (isAuthLoading) return;
     loadData();
-  }, [loadData]);
+  }, [loadData, isAuthLoading]);
 
   // Handle Cancellation
   const handleConfirmCancel = async (cancelReason: string) => {

@@ -50,6 +50,21 @@ export async function hasRole(requiredRoles: EmployeeRole[]): Promise<boolean> {
   return requiredRoles.includes(employee.role);
 }
 
+// In-memory cache for authenticated employees (30s TTL) to prevent duplicate lookups across parallel server actions
+interface CachedAuthEmployee {
+  employee: Employee;
+  expiresAt: number;
+}
+const authEmployeeCache = new Map<string, CachedAuthEmployee>();
+
+export function clearAuthEmployeeCache(emailOrId?: string) {
+  if (emailOrId) {
+    authEmployeeCache.delete(emailOrId.toLowerCase());
+  } else {
+    authEmployeeCache.clear();
+  }
+}
+
 /**
  * Resolves the active employee record from Supabase Auth or email.
  * Fallback to first employee is strictly restricted to development mode (process.env.NODE_ENV === 'development').
@@ -58,20 +73,48 @@ export async function getAuthenticatedEmployee(
   client: SupabaseClient,
   employeeEmail?: string
 ): Promise<Employee | null> {
+  const normalizedEmail = employeeEmail ? employeeEmail.trim().toLowerCase() : null;
+
+  // 1. Check in-memory cache
+  if (normalizedEmail) {
+    const cached = authEmployeeCache.get(normalizedEmail);
+    if (cached && Date.now() < cached.expiresAt) {
+      return cached.employee;
+    }
+  }
+
   let emp: Employee | null = null;
 
-  if (employeeEmail) {
+  if (normalizedEmail) {
+    // Try exact lower-case match first (hits b-tree index)
     const { data } = await client
       .from('employees')
       .select('id, full_name, email, role, spv_id, division_id, join_date, photo_url, work_schedule_id')
-      .ilike('email', employeeEmail.trim())
+      .eq('email', normalizedEmail)
       .maybeSingle();
-    if (data) emp = data as Employee;
+
+    if (data) {
+      emp = data as Employee;
+    } else {
+      // Fallback to case-insensitive match
+      const { data: ilikeData } = await client
+        .from('employees')
+        .select('id, full_name, email, role, spv_id, division_id, join_date, photo_url, work_schedule_id')
+        .ilike('email', normalizedEmail)
+        .maybeSingle();
+      if (ilikeData) emp = ilikeData as Employee;
+    }
   }
 
   if (!emp) {
     const user = await getCurrentUser();
     if (user?.email) {
+      const userCleanEmail = user.email.trim().toLowerCase();
+      const userCached = authEmployeeCache.get(userCleanEmail);
+      if (userCached && Date.now() < userCached.expiresAt) {
+        return userCached.employee;
+      }
+
       const { data } = await client
         .from('employees')
         .select('id, full_name, email, role, spv_id, division_id, join_date, photo_url, work_schedule_id')
@@ -84,7 +127,7 @@ export async function getAuthenticatedEmployee(
         const { data: byEmail } = await client
           .from('employees')
           .select('id, full_name, email, role, spv_id, division_id, join_date, photo_url, work_schedule_id')
-          .ilike('email', user.email)
+          .eq('email', userCleanEmail)
           .maybeSingle();
         if (byEmail) emp = byEmail as Employee;
       }
@@ -109,6 +152,17 @@ export async function getAuthenticatedEmployee(
         .limit(1)
         .maybeSingle();
       if (fallback) emp = fallback as Employee;
+    }
+  }
+
+  // Cache resolved employee for 30 seconds
+  if (emp) {
+    const cachedEntry: CachedAuthEmployee = { employee: emp, expiresAt: Date.now() + 30_000 };
+    if (emp.email) {
+      authEmployeeCache.set(emp.email.toLowerCase(), cachedEntry);
+    }
+    if (normalizedEmail) {
+      authEmployeeCache.set(normalizedEmail, cachedEntry);
     }
   }
 
@@ -141,4 +195,5 @@ export async function requireAuthRole(
 
   return { authorized: true, employee };
 }
+
 

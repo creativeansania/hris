@@ -94,16 +94,28 @@ export async function proxy(request: NextRequest) {
     );
 
     if (matchingRestriction) {
-      const adminClient = getAdminClient();
-      const client = adminClient || supabase;
+      let userRole: EmployeeRole | undefined = request.cookies.get('hris_user_role')?.value as EmployeeRole | undefined;
 
-      const { data: emp } = await client
-        .from('employees')
-        .select('role')
-        .or(`auth_user_id.eq.${user.id},email.ilike.${user.email}`)
-        .maybeSingle();
+      if (!userRole) {
+        const adminClient = getAdminClient();
+        const client = adminClient || supabase;
 
-      const userRole: EmployeeRole = (emp?.role as EmployeeRole) || 'staff';
+        const { data: emp } = await client
+          .from('employees')
+          .select('role')
+          .or(`auth_user_id.eq.${user.id},email.ilike.${user.email}`)
+          .maybeSingle();
+
+        userRole = (emp?.role as EmployeeRole) || 'staff';
+
+        response.cookies.set('hris_user_role', userRole, {
+          path: '/',
+          maxAge: 3600,
+          sameSite: 'lax',
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+        });
+      }
 
       if (!matchingRestriction.allowedRoles.includes(userRole)) {
         // Forbidden: Redirect to dashboard with unauthorized warning flag

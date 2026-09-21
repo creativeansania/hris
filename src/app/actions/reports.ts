@@ -3,6 +3,14 @@
 import { getActionClient } from '@/lib/supabase/action-client';
 import { EmployeeRole } from '@/types/database';
 import { getAuthenticatedEmployee, requireAuthRole } from '@/lib/auth';
+import { getDivisions } from '@/app/actions/divisions';
+
+// In-memory cache for reporting metrics (30s TTL)
+const reportMetricsCache = new Map<string, { data: ReportingMetricsResult; expiresAt: number }>();
+
+export async function invalidateReportingMetricsCache() {
+  reportMetricsCache.clear();
+}
 
 export interface ReportFilterPayload {
   month: number; // 1-12
@@ -92,13 +100,8 @@ export interface ReportingMetricsResult {
  * Fetches the list of all divisions to populate filters.
  */
 export async function getReportingDivisionsList() {
-  const client = await getActionClient();
-  const { data, error } = await client
-    .from('divisions')
-    .select('id, name')
-    .order('name', { ascending: true });
-
-  return { divisions: data || [], error: error?.message || null };
+  const { data, error } = await getDivisions();
+  return { divisions: (data || []).map((d) => ({ id: d.id, name: d.name })), error };
 }
 
 /**
@@ -107,6 +110,11 @@ export async function getReportingDivisionsList() {
 export async function getReportingMetrics(
   filters: ReportFilterPayload
 ): Promise<ReportingMetricsResult> {
+  const cacheKey = `${filters.month}_${filters.year}_${filters.divisionId || 'all'}_${filters.employeeId || 'all'}_${filters.userEmail || ''}`;
+  const cached = reportMetricsCache.get(cacheKey);
+  if (cached && Date.now() < cached.expiresAt) {
+    return cached.data;
+  }
   const defaultRes: ReportingMetricsResult = {
     scopeRole: 'staff',
     filterPeriod: {
@@ -179,13 +187,9 @@ export async function getReportingMetrics(
       label: periodLabel,
     };
 
-    // 2. Fetch Divisions
-    const { data: allDivisions } = await client
-      .from('divisions')
-      .select('id, name')
-      .order('name', { ascending: true });
-    
-    const divisionsList = allDivisions || [];
+    // 2. Fetch Divisions (cached)
+    const { data: allDivisions } = await getDivisions();
+    const divisionsList = (allDivisions || []).map((d) => ({ id: d.id, name: d.name }));
     defaultRes.divisionsList = divisionsList;
 
     // 3. Determine accessible division restriction
@@ -231,46 +235,59 @@ export async function getReportingMetrics(
     }
 
     // 5. Parallel queries for Attendance, Overtime, Leave, Contracts
+    // Avoid passing 90+ UUIDs into SQL IN clause when viewing all company employees
+    const isFiltered = Boolean(targetDivisionId || (filters.employeeId && filters.employeeId !== 'all'));
+
+    let attQuery = client
+      .from('attendance')
+      .select(`
+        employee_id,
+        attendance_date,
+        clock_in,
+        clock_out,
+        late_minutes,
+        is_absent,
+        linked_izin_telat_request_id
+      `)
+      .gte('attendance_date', startDate)
+      .lte('attendance_date', endDate);
+
+    if (isFiltered) {
+      attQuery = attQuery.in('employee_id', employeeIds);
+    }
+
+    let reqQuery = client
+      .from('requests')
+      .select(`
+        id,
+        employee_id,
+        total_days,
+        start_date,
+        end_date,
+        status,
+        request_type:request_types(id, name, code, category)
+      `)
+      .eq('status', 'approved')
+      .gte('start_date', startDate)
+      .lte('start_date', endDate);
+
+    if (isFiltered) {
+      reqQuery = reqQuery.in('employee_id', employeeIds);
+    }
+
+    let contractsQuery = client
+      .from('employee_contracts')
+      .select('employee_id, contract_type, base_salary, start_date, end_date')
+      .order('start_date', { ascending: false });
+
+    if (isFiltered) {
+      contractsQuery = contractsQuery.in('employee_id', employeeIds);
+    }
+
     const [attRes, reqRes, contractsRes] = await Promise.all([
-      // Attendance within month
-      client
-        .from('attendance')
-        .select(`
-          employee_id,
-          attendance_date,
-          clock_in,
-          clock_out,
-          late_minutes,
-          is_absent,
-          linked_izin_telat_request_id
-        `)
-        .in('employee_id', employeeIds)
-        .gte('attendance_date', startDate)
-        .lte('attendance_date', endDate),
-
-      // Approved requests within month (overtime, leave, etc.)
-      client
-        .from('requests')
-        .select(`
-          id,
-          employee_id,
-          total_days,
-          start_date,
-          end_date,
-          status,
-          request_type:request_types(id, name, code, category)
-        `)
-        .in('employee_id', employeeIds)
-        .eq('status', 'approved')
-        .gte('start_date', startDate)
-        .lte('start_date', endDate),
-
-      // Active contracts for base salary
-      client
-        .from('employee_contracts')
-        .select('employee_id, contract_type, base_salary, start_date, end_date')
-        .in('employee_id', employeeIds)
-        .order('start_date', { ascending: false }),
+      attQuery,
+      reqQuery,
+      contractsQuery,
     ]);
 
     const attendances = attRes.data || [];
@@ -530,6 +547,9 @@ export async function getReportingMetrics(
       divisionsList,
       error: null,
     };
+
+    reportMetricsCache.set(cacheKey, { data: defaultRes, expiresAt: Date.now() + 30_000 });
+    return defaultRes;
   } catch (err: unknown) {
     defaultRes.error = err instanceof Error ? err.message : 'Gagal memproses data laporan.';
     return defaultRes;

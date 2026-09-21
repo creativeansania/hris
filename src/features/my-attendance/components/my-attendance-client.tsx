@@ -24,7 +24,7 @@ import { IzinTelatModal } from './izin-telat-modal';
 import { LateReasonModal } from './late-reason-modal';
 
 export function MyAttendanceClient() {
-  const { email: currentUserEmail } = useCurrentUser();
+  const { email: currentUserEmail, isLoading: isAuthLoading } = useCurrentUser();
   const [records, setRecords] = useState<AttendanceRecordItem[]>([]);
   const [summary, setSummary] = useState<{
     presentDays: number;
@@ -76,8 +76,9 @@ export function MyAttendanceClient() {
   }, [selectedMonth, selectedYear, currentUserEmail]);
 
   useEffect(() => {
+    if (isAuthLoading) return;
     fetchAttendance();
-  }, [fetchAttendance]);
+  }, [fetchAttendance, isAuthLoading]);
 
   const handleReasonSuccess = (updatedId: string, newReason: string) => {
     setRecords((prev) =>
