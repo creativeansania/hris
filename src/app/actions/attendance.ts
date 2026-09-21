@@ -1,15 +1,11 @@
 'use server';
 
-import { getAdminClient } from '@/lib/supabase/admin';
-import { createClient } from '@/lib/supabase/server';
+import { getActionClient } from '@/lib/supabase/action-client';
 import { revalidatePath } from 'next/cache';
 import { parseFingerprintFile, RawAttendanceRow } from '@/lib/attendance/parser';
 import { getTodayWIB } from '@/lib/date-utils';
 import { getAuthenticatedEmployee, requireAuthRole } from '@/lib/auth';
-
-function getClient() {
-  return getAdminClient();
-}
+import { AttendanceImportBatchItem } from '@/types/database';
 
 export interface PreviewRow extends RawAttendanceRow {
   employee_id?: string | null;
@@ -53,7 +49,7 @@ export async function parseAndPreviewFingerprint(
       };
     }
 
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
 
     // 1. Fetch all employees to match by fingerprint_ac_no or name
     const { data: allEmployees, error: empError } = await client
@@ -193,7 +189,7 @@ export async function confirmAttendanceImport(payload: {
   duplicateHandling: 'skip' | 'overwrite';
 }) {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
 
     const authCheck = await requireAuthRole(client, ['admin', 'hr']);
     if (!authCheck.authorized) {
@@ -297,7 +293,7 @@ export async function confirmAttendanceImport(payload: {
 
 export async function getAttendanceBatches() {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
     const { data, error } = await client
       .from('attendance_import_batches')
       .select(`
@@ -308,7 +304,7 @@ export async function getAttendanceBatches() {
       .limit(20);
 
     if (error) return { data: [], error: error.message };
-    return { data: data || [], error: null };
+    return { data: (data || []) as unknown as AttendanceImportBatchItem[], error: null };
   } catch (err: unknown) {
     return { data: [], error: err instanceof Error ? err.message : 'Gagal mengambil riwayat impor' };
   }
@@ -349,7 +345,7 @@ export async function getAttendanceManagement(filters: {
   pageSize?: number;
 }) {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
     const shouldPaginate = typeof filters.page === 'number' && filters.page > 0;
     const page = shouldPaginate ? filters.page! : 1;
     const pageSize = filters.pageSize && filters.pageSize > 0 ? filters.pageSize : 50;
@@ -427,7 +423,7 @@ export async function getAttendanceManagement(filters: {
 
 export async function getMyAttendanceHistory(employeeEmail?: string, month?: number, year?: number) {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
 
     // Find employee by email (or first admin if dev preview)
     let empQuery = client.from('employees').select('id, full_name, email');
@@ -484,7 +480,7 @@ export async function getMyAttendanceHistory(employeeEmail?: string, month?: num
 
 export async function fillLateReason(attendanceId: string, lateReason: string) {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
 
     const currentEmp = await getAuthenticatedEmployee(client);
     if (!currentEmp) {

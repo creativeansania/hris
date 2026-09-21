@@ -7,3 +7,4 @@ export * from './components/late-accumulations-table';
 export * from './components/attendance-correction-modal';
 export * from './components/attendance-import-modal';
 export * from './components/batch-history-modal';
+export * from './components/attendance-management-client';

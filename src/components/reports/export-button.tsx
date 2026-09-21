@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Download, FileSpreadsheet, Loader2 } from 'lucide-react';
+import { Download, FileSpreadsheet, Loader2, AlertCircle } from 'lucide-react';
 import { EmployeeReportRow } from '@/app/actions/reports';
 
 interface ExportButtonProps {
@@ -17,9 +17,11 @@ export function ExportButton({
   divisionLabel = 'Semua Divisi',
 }: ExportButtonProps) {
   const [isExporting, setIsExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const handleExportCSV = () => {
     setIsExporting(true);
+    setExportError(null);
 
     try {
       // Header row
@@ -84,26 +86,35 @@ export function ExportButton({
       URL.revokeObjectURL(url);
     } catch (err) {
       console.error('Failed to export CSV:', err);
-      alert('Gagal mengekspor data ke format CSV.');
+      setExportError('Gagal mengekspor data ke format CSV.');
+      setTimeout(() => setExportError(null), 4000);
     } finally {
       setIsExporting(false);
     }
   };
 
   return (
-    <Button
-      variant="outline"
-      size="sm"
-      onClick={handleExportCSV}
-      disabled={isExporting || data.length === 0}
-      className="bg-emerald-950/30 border-emerald-500/30 text-emerald-400 hover:bg-emerald-900/40 hover:text-emerald-300 font-medium transition-all shadow-sm flex items-center gap-2"
-    >
-      {isExporting ? (
-        <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
-      ) : (
-        <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+    <div className="flex flex-col items-end gap-1">
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={handleExportCSV}
+        disabled={isExporting || data.length === 0}
+        className="bg-emerald-950/30 border-emerald-500/30 text-emerald-400 hover:bg-emerald-900/40 hover:text-emerald-300 font-medium transition-all shadow-sm flex items-center gap-2 cursor-pointer"
+      >
+        {isExporting ? (
+          <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
+        ) : (
+          <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+        )}
+        <span>Ekspor ke Excel / CSV</span>
+      </Button>
+      {exportError && (
+        <span className="text-[11px] text-rose-400 flex items-center gap-1">
+          <AlertCircle className="w-3 h-3 shrink-0" />
+          {exportError}
+        </span>
       )}
-      <span>Ekspor ke Excel / CSV</span>
-    </Button>
+    </div>
   );
 }

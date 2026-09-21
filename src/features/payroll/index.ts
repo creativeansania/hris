@@ -5,4 +5,5 @@ export * from './components/payroll-rules-editor';
 export * from './components/employee-payslip-history';
 export * from './components/create-period-modal';
 export * from './components/bank-export-modal';
+export * from './components/payroll-client';
 export { PayslipModal, type PayslipData } from '@/components/payroll/payslip-modal';

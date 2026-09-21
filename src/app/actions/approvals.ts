@@ -1,17 +1,12 @@
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
+import { getActionClient } from '@/lib/supabase/action-client';
 import { revalidatePath } from 'next/cache';
 import { RequestItem, ApprovalDecision } from '@/types/database';
 import { sanitizeText } from '@/lib/security';
 import { logAuditEvent } from '@/lib/audit';
 
-import { getAdminClient } from '@/lib/supabase/admin';
 import { getAuthenticatedEmployee } from '@/lib/auth';
-
-function getClient() {
-  return getAdminClient();
-}
 
 /**
  * Retrieves requests assigned for approval to the current user (SPV, Kadiv, Management, HR, Admin).
@@ -21,7 +16,7 @@ export async function getPendingApprovalsForUser(filters?: {
   tab?: 'pending' | 'history' | 'all';
 }): Promise<{ data: RequestItem[]; currentUserId: string | null; error: string | null }> {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
     const currentUser = await getAuthenticatedEmployee(client, filters?.userEmail);
 
     if (!currentUser) {
@@ -124,7 +119,7 @@ export async function submitApprovalDecision(payload: {
   userEmail?: string;
 }) {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
     const currentUser = await getAuthenticatedEmployee(client, payload.userEmail);
 
     if (!currentUser) {

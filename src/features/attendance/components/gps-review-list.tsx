@@ -3,9 +3,10 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { MapPin, Check, Ban, Smartphone, ExternalLink, ShieldCheck } from 'lucide-react';
+import { GpsReviewItem } from '@/types/database';
 
 interface GpsReviewListProps {
-  records: any[];
+  records: GpsReviewItem[];
   onReview: (attendanceId: string, decision: 'approved' | 'rejected') => void;
   reviewingId: string | null;
 }

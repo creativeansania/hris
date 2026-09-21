@@ -1,16 +1,11 @@
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
+import { getActionClient } from '@/lib/supabase/action-client';
 import { revalidatePath } from 'next/cache';
 import { NotificationItem, NotificationType, EmployeeRole } from '@/types/database';
 
-import { getAdminClient } from '@/lib/supabase/admin';
 import { getAuthenticatedEmployee } from '@/lib/auth';
 import { getTodayWIB } from '@/lib/date-utils';
-
-function getClient() {
-  return getAdminClient();
-}
 
 /**
  * Internal helper to create a single notification
@@ -25,7 +20,7 @@ export async function createNotification(payload: {
   related_entity_id?: string | null;
 }): Promise<{ success: boolean; data?: NotificationItem; error?: string }> {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
 
     const { data, error } = await client
       .from('notifications')
@@ -76,7 +71,7 @@ export async function createBulkNotifications(
       return { success: true, count: 0 };
     }
 
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
 
     const records = payloads.map((p) => ({
       employee_id: p.employee_id,
@@ -124,7 +119,7 @@ export async function getMyNotifications(
   error?: string | null;
 }> {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
     const employee = await getAuthenticatedEmployee(client, userEmail);
 
     if (!employee) {
@@ -202,7 +197,7 @@ export async function markNotificationAsRead(notificationId: string): Promise<{
   error?: string;
 }> {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
 
     const { error } = await client
       .from('notifications')
@@ -233,7 +228,7 @@ export async function markAllNotificationsAsRead(userEmail?: string): Promise<{
   error?: string;
 }> {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
     const employee = await getAuthenticatedEmployee(client, userEmail);
 
     if (!employee) {
@@ -270,7 +265,7 @@ export async function deleteNotification(notificationId: string): Promise<{
   error?: string;
 }> {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
 
     const { error } = await client
       .from('notifications')
@@ -305,7 +300,7 @@ export async function checkAndDispatchSystemReminders(userEmail?: string): Promi
   message: string;
 }> {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
 
     let contractsNotified = 0;
     let quotaNotified = 0;

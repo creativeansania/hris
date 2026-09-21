@@ -1,7 +1,6 @@
 'use server';
 
-import { getAdminClient } from '@/lib/supabase/admin';
-import { createClient } from '@/lib/supabase/server';
+import { getActionClient } from '@/lib/supabase/action-client';
 import { revalidatePath } from 'next/cache';
 import { requireAuthRole } from '@/lib/auth';
 
@@ -17,7 +16,7 @@ export interface ScheduleDayInput {
 
 export async function getScheduleGroups() {
   try {
-    const client = getAdminClient() || (await createClient());
+    const client = await getActionClient();
 
     const { data: groups, error: groupError } = await client
       .from('work_schedule_groups')
@@ -48,7 +47,7 @@ export async function saveScheduleGroup(
   daysData: ScheduleDayInput[]
 ) {
   try {
-    const admin = getAdminClient() || (await createClient());
+    const admin = await getActionClient();
     const authCheck = await requireAuthRole(admin, ['admin', 'hr']);
     if (!authCheck.authorized) {
       return { success: false, error: authCheck.error };
@@ -114,7 +113,7 @@ export async function saveScheduleGroup(
 
 export async function deleteScheduleGroup(groupId: string) {
   try {
-    const admin = getAdminClient() || (await createClient());
+    const admin = await getActionClient();
     const authCheck = await requireAuthRole(admin, ['admin', 'hr']);
     if (!authCheck.authorized) {
       return { success: false, error: authCheck.error };

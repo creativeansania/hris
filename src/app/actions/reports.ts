@@ -1,13 +1,8 @@
 'use server';
 
-import { getAdminClient } from '@/lib/supabase/admin';
-import { createClient } from '@/lib/supabase/server';
+import { getActionClient } from '@/lib/supabase/action-client';
 import { EmployeeRole } from '@/types/database';
 import { getAuthenticatedEmployee, requireAuthRole } from '@/lib/auth';
-
-function getClient() {
-  return getAdminClient();
-}
 
 export interface ReportFilterPayload {
   month: number; // 1-12
@@ -97,7 +92,7 @@ export interface ReportingMetricsResult {
  * Fetches the list of all divisions to populate filters.
  */
 export async function getReportingDivisionsList() {
-  const client = getClient() || (await createClient());
+  const client = await getActionClient();
   const { data, error } = await client
     .from('divisions')
     .select('id, name')
@@ -147,7 +142,7 @@ export async function getReportingMetrics(
   };
 
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
     const authCheck = await requireAuthRole(
       client,
       ['admin', 'hr', 'management', 'kepala_divisi', 'spv'],

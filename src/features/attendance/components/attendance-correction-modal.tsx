@@ -1,15 +1,18 @@
+'use client';
+
 import React, { useState } from 'react';
 import { Modal } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { AttendanceRecordItem } from '@/app/actions/attendance';
+import { AttendanceCorrectionItem } from '@/types/database';
 import { Clock, History, AlertCircle } from 'lucide-react';
 
 interface AttendanceCorrectionModalProps {
   isOpen: boolean;
   onClose: () => void;
   record: AttendanceRecordItem | null;
-  pastCorrections: any[];
+  pastCorrections: AttendanceCorrectionItem[];
   onSubmit: (attendanceId: string, clockIn: string, clockOut: string, reason: string) => Promise<void>;
   isSaving: boolean;
   feedback: string | null;

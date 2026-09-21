@@ -1,15 +1,10 @@
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
+import { getActionClient } from '@/lib/supabase/action-client';
 import { revalidatePath } from 'next/cache';
 import { RequestItem, Employee } from '@/types/database';
 
-import { getAdminClient } from '@/lib/supabase/admin';
 import { getAuthenticatedEmployee } from '@/lib/auth';
-
-function getClient() {
-  return getAdminClient();
-}
 
 /**
  * Returns subordinates that the logged-in supervisor is authorized to assign overtime to.
@@ -21,7 +16,7 @@ export async function getAssignableSubordinates(supervisorEmail?: string): Promi
   error: string | null;
 }> {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
     const supervisor = await getAuthenticatedEmployee(client, supervisorEmail);
 
     if (!supervisor) {
@@ -102,7 +97,7 @@ export async function createOvertimeAssignment(payload: {
   supervisorEmail?: string;
 }) {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
     const supervisor = await getAuthenticatedEmployee(client, payload.supervisorEmail);
 
     if (!supervisor) {
@@ -269,7 +264,7 @@ export async function getMyOvertimeList(employeeEmail?: string): Promise<{
   error: string | null;
 }> {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
     const employee = await getAuthenticatedEmployee(client, employeeEmail);
 
     if (!employee) return { data: [], error: 'Karyawan tidak ditemukan.' };
@@ -332,7 +327,7 @@ export async function getAssignedOvertimeList(supervisorEmail?: string): Promise
   error: string | null;
 }> {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
     const supervisor = await getAuthenticatedEmployee(client, supervisorEmail);
 
     if (!supervisor) return { data: [], error: 'Atasan tidak ditemukan.' };
@@ -397,7 +392,7 @@ export async function getAssignedOvertimeList(supervisorEmail?: string): Promise
  */
 export async function cancelOvertimeAssignment(requestId: string, supervisorEmail?: string) {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
     const supervisor = await getAuthenticatedEmployee(client, supervisorEmail);
 
     if (!supervisor) return { success: false, error: 'Atasan tidak terverifikasi.' };

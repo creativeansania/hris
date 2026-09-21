@@ -1,7 +1,6 @@
 'use server';
 
-import { getAdminClient } from '@/lib/supabase/admin';
-import { createClient } from '@/lib/supabase/server';
+import { getActionClient } from '@/lib/supabase/action-client';
 import { revalidatePath } from 'next/cache';
 import {
   EmployeeContract,
@@ -11,10 +10,6 @@ import {
 } from '@/types/database';
 import { getEmployeeLeaveBalance } from '@/app/actions/requests';
 import { getAuthenticatedEmployee, requireAuthRole } from '@/lib/auth';
-
-function getClient() {
-  return getAdminClient();
-}
 
 /**
  * Calculates days remaining and urgency status for a contract.
@@ -61,7 +56,7 @@ export async function getEmployeeContracts(
   employeeId: string
 ): Promise<{ data: EmployeeContract[]; error: string | null }> {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
 
     const { data, error } = await client
       .from('employee_contracts')
@@ -100,7 +95,7 @@ export async function addEmployeeContract(payload: {
   creatorEmail?: string;
 }) {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
     const authCheck = await requireAuthRole(client, ['admin', 'hr'], payload.creatorEmail);
     if (!authCheck.authorized) {
       return { success: false, error: authCheck.error };
@@ -193,7 +188,7 @@ export async function getExpiringContracts(thresholdDays: number = 30): Promise<
   error: string | null;
 }> {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
     const authCheck = await requireAuthRole(client, ['admin', 'hr', 'management']);
     if (!authCheck.authorized) {
       return { data: [], criticalCount: 0, warningCount: 0, error: authCheck.error };
@@ -275,7 +270,7 @@ export async function getEmployeePositionHistory(
   employeeId: string
 ): Promise<{ data: EmployeePosition[]; error: string | null }> {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
 
     const { data, error } = await client
       .from('employee_positions')
@@ -313,7 +308,7 @@ export async function addEmployeePositionMutation(payload: {
   creatorEmail?: string;
 }) {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
     const authCheck = await requireAuthRole(
       client,
       ['admin', 'hr', 'management'],
@@ -393,7 +388,7 @@ export async function getEmployeeFullProfile(employeeId: string): Promise<{
   error: string | null;
 }> {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
 
     // 1. Fetch Employee with Division & Work Schedule
     const { data: emp, error: empErr } = await client

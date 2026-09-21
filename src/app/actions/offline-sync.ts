@@ -1,14 +1,9 @@
 'use server';
 
-import { getAdminClient } from '@/lib/supabase/admin';
-import { createClient } from '@/lib/supabase/server';
 import { submitGpsClockIn, submitGpsClockOut } from '@/app/actions/gps-attendance';
 import { createLeaveOrPermitRequest } from '@/app/actions/requests';
 import { logAuditEvent } from '@/lib/audit';
 
-function getClient() {
-  return getAdminClient();
-}
 
 export interface SyncAttendanceItemInput {
   id: string;

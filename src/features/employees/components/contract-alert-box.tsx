@@ -3,9 +3,10 @@
 import React from 'react';
 import Link from 'next/link';
 import { AlertTriangle, ArrowUpRight } from 'lucide-react';
+import { ExpiringContractItem } from '@/types/database';
 
 interface ContractAlertBoxProps {
-  expiringContracts: any[];
+  expiringContracts: ExpiringContractItem[];
   criticalCount: number;
   warningCount: number;
 }
@@ -72,7 +73,9 @@ export function ContractAlertBox({
           >
             <span>{employee.full_name}</span>
             <span className="font-mono font-bold">
-              ({contract.days_remaining < 0 ? 'Habis' : `H-${contract.days_remaining}`})
+              ({typeof contract.days_remaining === 'number' && contract.days_remaining < 0
+                ? 'Habis'
+                : `H-${contract.days_remaining ?? 0}`})
             </span>
             <ArrowUpRight className="w-3 h-3" />
           </Link>

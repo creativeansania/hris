@@ -3,11 +3,12 @@ import { Modal } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { History, FileSpreadsheet } from 'lucide-react';
+import { AttendanceImportBatchItem } from '@/types/database';
 
 interface BatchHistoryModalProps {
   isOpen: boolean;
   onClose: () => void;
-  batches: any[];
+  batches: AttendanceImportBatchItem[];
 }
 
 export function BatchHistoryModal({ isOpen, onClose, batches }: BatchHistoryModalProps) {

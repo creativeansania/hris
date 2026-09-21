@@ -3,9 +3,10 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Clock, Check, Ban, FileText } from 'lucide-react';
+import { IzinTelatItem } from '@/types/database';
 
 interface IzinTelatListProps {
-  requests: any[];
+  requests: IzinTelatItem[];
   onDecide: (requestId: string, decision: 'approved' | 'rejected') => void;
   decidingId: string | null;
 }

@@ -1,13 +1,8 @@
 'use server';
 
-import { getAdminClient } from '@/lib/supabase/admin';
-import { createClient } from '@/lib/supabase/server';
+import { getActionClient } from '@/lib/supabase/action-client';
 import { EmployeeRole } from '@/types/database';
 import { requireAuthRole } from '@/lib/auth';
-
-function getClient() {
-  return getAdminClient();
-}
 
 export interface AuditLogItem {
   id: string;
@@ -43,7 +38,7 @@ export async function getAuditLogs(filters?: {
   error: string | null;
 }> {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
     const authCheck = await requireAuthRole(client, ['admin', 'hr', 'management'], filters?.userEmail);
     if (!authCheck.authorized) {
       return { data: [], error: authCheck.error };

@@ -1,23 +1,18 @@
 'use server';
 
-import { getAdminClient } from '@/lib/supabase/admin';
-import { createClient } from '@/lib/supabase/server';
+import { getActionClient } from '@/lib/supabase/action-client';
 import { revalidatePath } from 'next/cache';
 import {
   findClosestOffice,
   isGpsAccuracyAcceptable,
   OfficeLocationGeo,
 } from '@/lib/geo/haversine';
-import { AttendanceReviewStatus } from '@/types/database';
+import { AttendanceReviewStatus, GpsReviewItem } from '@/types/database';
 import { checkClockInRateLimit } from '@/lib/rate-limiter';
 import { sanitizeText } from '@/lib/security';
 import { logAuditEvent } from '@/lib/audit';
 import { getTodayWIB } from '@/lib/date-utils';
 import { requireAuthRole } from '@/lib/auth';
-
-function getClient() {
-  return getAdminClient();
-}
 
 export interface GpsClockInPayload {
   employeeEmail?: string;
@@ -41,7 +36,7 @@ export interface GpsClockOutPayload {
 
 export async function getTodayGpsStatus(employeeEmail?: string) {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
 
     // 1. Resolve employee
     let empQuery = client.from('employees').select('id, full_name, email, role, work_schedule_id');
@@ -96,7 +91,7 @@ export async function submitGpsClockIn(payload: GpsClockInPayload) {
       };
     }
 
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
 
     // 2. Resolve employee
     let empQuery = client.from('employees').select('id, full_name, email, role, work_schedule_id');
@@ -295,7 +290,7 @@ export async function submitGpsClockIn(payload: GpsClockInPayload) {
 
 export async function submitGpsClockOut(payload: GpsClockOutPayload) {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
 
     // 1. Resolve employee
     let empQuery = client.from('employees').select('id, full_name, email');
@@ -399,7 +394,7 @@ export async function submitGpsClockOut(payload: GpsClockOutPayload) {
 
 export async function getPendingGpsAttendanceList() {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
 
     const { data, error } = await client
       .from('attendance')
@@ -431,7 +426,7 @@ export async function getPendingGpsAttendanceList() {
       return { data: [], error: error.message };
     }
 
-    return { data: data || [], error: null };
+    return { data: (data || []) as unknown as GpsReviewItem[], error: null };
   } catch (err: unknown) {
     return { data: [], error: err instanceof Error ? err.message : 'Gagal memuat daftar review GPS' };
   }
@@ -443,7 +438,7 @@ export async function reviewGpsAttendance(
   notes?: string
 ) {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
 
     const authCheck = await requireAuthRole(client, ['admin', 'hr', 'management', 'spv']);
     if (!authCheck.authorized) {

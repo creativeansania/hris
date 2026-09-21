@@ -1,14 +1,14 @@
 'use server';
 
-import { getAdminClient } from '@/lib/supabase/admin';
-import { createClient } from '@/lib/supabase/server';
+import { getActionClient } from '@/lib/supabase/action-client';
 import { revalidatePath } from 'next/cache';
 import { getTodayWIB, getWIBDateParts } from '@/lib/date-utils';
 import { requireAuthRole } from '@/lib/auth';
-
-function getClient() {
-  return getAdminClient();
-}
+import {
+  IzinTelatItem,
+  LateAccumulationItem,
+  AttendanceCorrectionItem,
+} from '@/types/database';
 
 /**
  * Checks whether an employee is eligible to submit "Izin Telat" today.
@@ -16,7 +16,7 @@ function getClient() {
  */
 export async function checkCanApplyIzinTelat(employeeEmail?: string) {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
 
     let empQuery = client.from('employees').select('id, full_name, email, role, work_schedule_id');
     if (employeeEmail) {
@@ -132,7 +132,7 @@ export async function submitIzinTelat(payload: {
   reason: string;
 }) {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
 
     let empQuery = client.from('employees').select('id, full_name, email, role, spv_id, division_id');
     if (payload.employeeEmail) {
@@ -229,7 +229,7 @@ export async function submitIzinTelat(payload: {
  */
 export async function getMyIzinTelatHistory(employeeEmail?: string) {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
 
     let empQuery = client.from('employees').select('id');
     if (employeeEmail) {
@@ -279,7 +279,7 @@ export async function getMyIzinTelatHistory(employeeEmail?: string) {
  */
 export async function getPendingIzinTelatList() {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
 
     const { data, error } = await client
       .from('requests')
@@ -311,9 +311,9 @@ export async function getPendingIzinTelatList() {
 
     if (error) return { data: [], error: error.message };
 
-    const izinTelatList = (data || []).filter(
+    const izinTelatList = ((data || []).filter(
       (r: any) => r.request_type?.code === 'izin_telat'
-    );
+    ) as unknown) as IzinTelatItem[];
 
     return { data: izinTelatList, error: null };
   } catch (err: unknown) {
@@ -331,7 +331,7 @@ export async function decideIzinTelat(
   note?: string
 ) {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
 
     const authCheck = await requireAuthRole(client, ['admin', 'hr', 'management', 'spv']);
     if (!authCheck.authorized) {
@@ -406,7 +406,7 @@ export async function calculateMonthlyLateAccumulation(
   month: number
 ) {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
 
     const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
     const lastDay = new Date(year, month, 0).getDate();
@@ -501,7 +501,7 @@ export async function calculateMonthlyLateAccumulation(
  */
 export async function recalculateAllLateAccumulations(year: number, month: number) {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
 
     const { data: employees } = await client
       .from('employees')
@@ -529,7 +529,7 @@ export async function recalculateAllLateAccumulations(year: number, month: numbe
  */
 export async function getMyLateAccumulation(employeeEmail?: string, year?: number, month?: number) {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
 
     let empQuery = client.from('employees').select('id');
     if (employeeEmail) {
@@ -564,7 +564,7 @@ export async function getMyLateAccumulation(employeeEmail?: string, year?: numbe
  */
 export async function getLateAccumulationsSummary(year: number, month: number, divisionId?: string) {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
 
     let query = client
       .from('late_accumulations')
@@ -593,7 +593,7 @@ export async function getLateAccumulationsSummary(year: number, month: number, d
       results = results.filter((r: any) => r.employee?.division_id === divisionId);
     }
 
-    return { data: results, error: null };
+    return { data: (results as unknown) as LateAccumulationItem[], error: null };
   } catch (err: unknown) {
     return { data: [], error: err instanceof Error ? err.message : 'Gagal memuat rekapitulasi akumulasi sanksi' };
   }
@@ -614,7 +614,7 @@ export async function createAttendanceCorrection(payload: {
       return { success: false, error: 'Alasan koreksi wajib diisi untuk keperluan audit trail.' };
     }
 
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
 
     const authCheck = await requireAuthRole(client, ['admin', 'hr', 'management']);
     if (!authCheck.authorized) {
@@ -729,7 +729,7 @@ export async function createAttendanceCorrection(payload: {
  */
 export async function getAttendanceCorrections(attendanceId: string) {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
 
     const { data, error } = await client
       .from('attendance_corrections')
@@ -741,7 +741,7 @@ export async function getAttendanceCorrections(attendanceId: string) {
       .order('created_at', { ascending: false });
 
     if (error) return { data: [], error: error.message };
-    return { data: data || [], error: null };
+    return { data: (data || []) as unknown as AttendanceCorrectionItem[], error: null };
   } catch (err: unknown) {
     return { data: [], error: err instanceof Error ? err.message : 'Gagal memuat riwayat koreksi' };
   }

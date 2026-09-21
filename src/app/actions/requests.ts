@@ -1,18 +1,13 @@
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
+import { getActionClient } from '@/lib/supabase/action-client';
 import { revalidatePath } from 'next/cache';
 import { RequestItem, LeaveBalance, RequestType } from '@/types/database';
 import { sanitizeText, sanitizeFileName } from '@/lib/security';
 import { checkFileUploadRateLimit } from '@/lib/rate-limiter';
 import { logAuditEvent } from '@/lib/audit';
 
-import { getAdminClient } from '@/lib/supabase/admin';
 import { getAuthenticatedEmployee } from '@/lib/auth';
-
-function getClient() {
-  return getAdminClient();
-}
 
 /**
  * Retrieves the annual leave balance for an employee, automatically creating it if missing.
@@ -23,7 +18,7 @@ export async function getEmployeeLeaveBalance(
   employeeEmail?: string
 ): Promise<{ data: LeaveBalance | null; error: string | null }> {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
 
     let targetEmpId = employeeId;
     let targetEmp: any = null;
@@ -139,7 +134,7 @@ export async function getEmployeeLeaveBalance(
  */
 export async function calculateWorkingDays(startDateStr: string, endDateStr?: string | null) {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
     const start = new Date(startDateStr);
     const end = endDateStr ? new Date(endDateStr) : new Date(startDateStr);
 
@@ -179,7 +174,7 @@ export async function calculateWorkingDays(startDateStr: string, endDateStr?: st
  */
 export async function createLeaveOrPermitRequest(formData: FormData) {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
 
     const employeeEmail = formData.get('employeeEmail') as string | null;
     const requestTypeId = formData.get('request_type_id') as string;
@@ -513,7 +508,7 @@ export async function getMyRequests(filters?: {
   employeeEmail?: string;
 }): Promise<{ data: RequestItem[]; error: string | null }> {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
     const employee = await getAuthenticatedEmployee(client, filters?.employeeEmail);
 
     if (!employee) return { data: [], error: 'Karyawan tidak ditemukan.' };
@@ -571,7 +566,7 @@ export async function cancelMyRequest(
   employeeEmail?: string
 ) {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
     const employee = await getAuthenticatedEmployee(client, employeeEmail);
 
     if (!employee) return { success: false, error: 'Karyawan tidak terverifikasi.' };
@@ -642,7 +637,7 @@ export async function cancelMyRequest(
  */
 export async function getRequestDetails(requestId: string): Promise<{ data: RequestItem | null; error: string | null }> {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
 
     const { data, error } = await client
       .from('requests')

@@ -1,7 +1,6 @@
 'use server';
 
-import { getAdminClient } from '@/lib/supabase/admin';
-import { createClient } from '@/lib/supabase/server';
+import { getActionClient } from '@/lib/supabase/action-client';
 import { revalidatePath } from 'next/cache';
 import {
   PayrollPeriod,
@@ -13,15 +12,11 @@ import {
 import { logAuditEvent } from '@/lib/audit';
 import { getAuthenticatedEmployee, requireAuthRole } from '@/lib/auth';
 
-function getClient() {
-  return getAdminClient();
-}
-
 /**
  * Seeds standard Indonesian payroll rules if not present.
  */
 export async function seedDefaultPayrollRules() {
-  const client = getClient() || (await createClient());
+  const client = await getActionClient();
   const { data: existing } = await client.from('payroll_rules').select('id').limit(1);
 
   if (existing && existing.length > 0) return;
@@ -103,7 +98,7 @@ export async function getPayrollRules(): Promise<{
   error: string | null;
 }> {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
 
     let { data, error } = await client
       .from('payroll_rules')
@@ -140,7 +135,7 @@ export async function updatePayrollRule(
   userEmail?: string
 ) {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
     const authCheck = await requireAuthRole(client, ['admin', 'management'], userEmail);
     if (!authCheck.authorized) {
       return { success: false, error: authCheck.error };
@@ -176,7 +171,7 @@ export async function getPayrollPeriods(): Promise<{
   error: string | null;
 }> {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
 
     const { data: periods, error: pErr } = await client
       .from('payroll_periods')
@@ -230,7 +225,7 @@ export async function createPayrollPeriod(payload: {
   creatorEmail?: string;
 }) {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
 
     const authCheck = await requireAuthRole(client, ['admin', 'hr', 'management'], payload.creatorEmail);
     if (!authCheck.authorized) {
@@ -285,7 +280,7 @@ export async function generatePayrollRun(
   error?: string;
 }> {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
 
     const authCheck = await requireAuthRole(client, ['admin', 'management'], executorEmail);
     if (!authCheck.authorized) {
@@ -572,7 +567,7 @@ export async function finalizePayrollPeriod(
   error?: string;
 }> {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
     const executor = await getAuthenticatedEmployee(client, executorEmail);
 
     if (!executor || !['admin', 'management'].includes(executor.role)) {
@@ -643,7 +638,7 @@ export async function getPayrollRunDetail(periodId: string): Promise<{
   error: string | null;
 }> {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
 
     const { data: period, error: pErr } = await client
       .from('payroll_periods')
@@ -696,7 +691,7 @@ export async function getEmployeePayslips(employeeEmail?: string): Promise<{
   error: string | null;
 }> {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
     const emp = await getAuthenticatedEmployee(client, employeeEmail);
 
     if (!emp) return { payslips: [], error: 'Karyawan tidak terautentikasi.' };

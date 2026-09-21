@@ -1,15 +1,10 @@
 'use server';
 
-import { getAdminClient } from '@/lib/supabase/admin';
-import { createClient } from '@/lib/supabase/server';
+import { getActionClient } from '@/lib/supabase/action-client';
 import { revalidatePath } from 'next/cache';
 import { OdooSyncOutboxItem, OdooSyncStatus, EmployeeRole } from '@/types/database';
 import { logAuditEvent } from '@/lib/audit';
 import { getAuthenticatedEmployee, requireAuthRole } from '@/lib/auth';
-
-function getClient() {
-  return getAdminClient();
-}
 
 /**
  * Returns Odoo connection status and mode (live vs sandbox).
@@ -46,7 +41,7 @@ export async function collectPendingSyncData(userEmail?: string): Promise<{
   error?: string;
 }> {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
     const authCheck = await requireAuthRole(client, ['admin', 'hr'], userEmail);
     if (!authCheck.authorized) {
       return {
@@ -259,7 +254,7 @@ export async function getOdooSyncOutbox(filters?: {
   error: string | null;
 }> {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
 
     let query = client
       .from('odoo_sync_outbox')
@@ -346,7 +341,7 @@ export async function executeOdooSync(payload: {
   error?: string;
 }> {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
     const authCheck = await requireAuthRole(client, ['admin', 'hr'], payload.executorEmail);
     if (!authCheck.authorized) {
       return {
@@ -512,7 +507,7 @@ export async function retryFailedOdooSync(
   error?: string;
 }> {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
     const authCheck = await requireAuthRole(client, ['admin', 'hr'], executorEmail);
     if (!authCheck.authorized) {
       return { success: false, message: authCheck.error };

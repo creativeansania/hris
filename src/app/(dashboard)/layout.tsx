@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Sidebar } from '@/components/sidebar';
 import { Topbar } from '@/components/topbar';
 import { EmployeeRole } from '@/types/database';
-import { createClient } from '@/lib/supabase/client';
+import { useCurrentUser } from '@/hooks/use-current-user';
 import { AlertTriangle, Database, ArrowUpRight, ShieldAlert } from 'lucide-react';
 
 import { OfflineBanner } from '@/components/offline-banner';
@@ -16,10 +16,18 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
-  const [userName, setUserName] = useState<string>('Developer Admin');
-  const [userEmail, setUserEmail] = useState<string>('admin@hris.internal');
-  const [userRole, setUserRole] = useState<EmployeeRole>('admin');
-  const [isPlaceholderEnv, setIsPlaceholderEnv] = useState(false);
+  const {
+    email: currentUserEmail,
+    role: currentUserRole,
+    name: currentUserName,
+    isPlaceholder: isPlaceholderEnv,
+  } = useCurrentUser();
+
+  const userRole: EmployeeRole = currentUserRole || 'admin';
+  const userName = currentUserName || 'Developer Admin';
+  const userEmail = currentUserEmail || 'admin@hris.internal';
+
+  const [dismissPlaceholder, setDismissPlaceholder] = useState(false);
   const [unauthorizedWarning, setUnauthorizedWarning] = useState<{
     show: boolean;
     deniedRoute?: string;
@@ -34,39 +42,6 @@ export default function DashboardLayout({
           deniedRoute: params.get('deniedRoute') || 'halaman tersebut',
         });
       }
-    }
-  }, []);
-
-  useEffect(() => {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const isPlaceholder = !supabaseUrl || supabaseUrl.includes('placeholder');
-    setIsPlaceholderEnv(isPlaceholder);
-
-    if (!isPlaceholder) {
-      const fetchUserData = async () => {
-        const supabase = createClient();
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-
-        if (user) {
-          setUserEmail(user.email || 'user@hris.internal');
-          const { data: emp } = await supabase
-            .from('employees')
-            .select('full_name, role')
-            .eq('auth_user_id', user.id)
-            .maybeSingle();
-
-          if (emp) {
-            setUserName(emp.full_name);
-            setUserRole(emp.role);
-          } else {
-            setUserName(user.user_metadata?.full_name || user.email?.split('@')[0] || 'Karyawan');
-          }
-        }
-      };
-
-      fetchUserData();
     }
   }, []);
 
@@ -95,9 +70,9 @@ export default function DashboardLayout({
         {/* PWA Floating Install Prompt */}
         <PwaInstallPrompt />
 
-        {/* Database Config Banner (Slim dismissible notification) */}
-        {isPlaceholderEnv && (
-          <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-2 flex items-center justify-between text-xs text-amber-300">
+        {/* Placeholder Environment Warning Banner */}
+        {isPlaceholderEnv && !dismissPlaceholder && (
+          <div className="bg-amber-500/15 border-b border-amber-500/30 px-4 py-2.5 flex items-center justify-between text-xs text-amber-300">
             <div className="flex items-center gap-2 min-w-0">
               <Database className="w-3.5 h-3.5 text-amber-400 shrink-0" />
               <span className="truncate">
@@ -115,7 +90,7 @@ export default function DashboardLayout({
               </a>
               <button
                 type="button"
-                onClick={() => setIsPlaceholderEnv(false)}
+                onClick={() => setDismissPlaceholder(true)}
                 className="text-amber-400/80 hover:text-white px-1.5 py-0.5 text-xs font-bold rounded"
                 title="Tutup pemberitahuan"
               >

@@ -3,9 +3,10 @@ import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { formatIDR } from '@/lib/formatters';
 import { Clock, RefreshCw, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { LateAccumulationItem } from '@/types/database';
 
 interface LateAccumulationsTableProps {
-  accumulations: any[];
+  accumulations: LateAccumulationItem[];
   onRecalculate: () => void;
   isRecalculating: boolean;
   selectedMonth: number;

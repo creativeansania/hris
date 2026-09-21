@@ -1,14 +1,9 @@
 'use server';
 
-import { getAdminClient } from '@/lib/supabase/admin';
-import { createClient } from '@/lib/supabase/server';
+import { getActionClient } from '@/lib/supabase/action-client';
 import { revalidatePath } from 'next/cache';
 import { LeaveBalance } from '@/types/database';
 import { requireAuthRole } from '@/lib/auth';
-
-function getClient() {
-  return getAdminClient();
-}
 
 /**
  * Retrieves all employee leave balances for a specific year, auto-generating missing ones.
@@ -18,7 +13,7 @@ export async function getAllLeaveBalances(filters?: {
   divisionId?: string;
 }): Promise<{ data: LeaveBalance[]; error: string | null }> {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
     const targetYear = filters?.year || new Date().getFullYear();
 
     // 1. Get cuti_tahunan request_type
@@ -145,7 +140,7 @@ export async function adjustEmployeeLeaveBalance(payload: {
   adjustedByEmail?: string;
 }) {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
     const authCheck = await requireAuthRole(client, ['admin', 'hr'], payload.adjustedByEmail);
     if (!authCheck.authorized) {
       return { success: false, error: authCheck.error };

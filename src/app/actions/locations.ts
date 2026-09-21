@@ -1,18 +1,13 @@
 'use server';
 
-import { getAdminClient } from '@/lib/supabase/admin';
-import { createClient } from '@/lib/supabase/server';
+import { getActionClient } from '@/lib/supabase/action-client';
 import { revalidatePath } from 'next/cache';
 import { OfficeLocation } from '@/types/database';
 import { requireAuthRole } from '@/lib/auth';
 
-function getClient() {
-  return getAdminClient();
-}
-
 export async function getOfficeLocations(): Promise<{ data: OfficeLocation[]; error: string | null }> {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
     const { data, error } = await client
       .from('office_locations')
       .select('*')
@@ -33,7 +28,7 @@ export async function createOfficeLocation(formData: {
   radius_meters: number;
 }) {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
     const authCheck = await requireAuthRole(client, ['admin', 'hr']);
     if (!authCheck.authorized) {
       return { success: false, error: authCheck.error };
@@ -67,7 +62,7 @@ export async function updateOfficeLocation(
   }
 ) {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
     const authCheck = await requireAuthRole(client, ['admin', 'hr']);
     if (!authCheck.authorized) {
       return { success: false, error: authCheck.error };
@@ -95,7 +90,7 @@ export async function updateOfficeLocation(
 
 export async function deleteOfficeLocation(id: string) {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
     const authCheck = await requireAuthRole(client, ['admin', 'hr']);
     if (!authCheck.authorized) {
       return { success: false, error: authCheck.error };

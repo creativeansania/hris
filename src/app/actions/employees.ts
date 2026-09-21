@@ -1,7 +1,6 @@
 'use server';
 
-import { getAdminClient } from '@/lib/supabase/admin';
-import { createClient } from '@/lib/supabase/server';
+import { getActionClient } from '@/lib/supabase/action-client';
 import { revalidatePath } from 'next/cache';
 import {
   Employee,
@@ -13,10 +12,6 @@ import {
 import { sanitizePostgrestSearch } from '@/lib/security';
 import { requireAuthRole } from '@/lib/auth';
 import { getTodayWIB } from '@/lib/date-utils';
-
-function getClient() {
-  return getAdminClient();
-}
 
 export interface GetEmployeesFilter {
   search?: string;
@@ -40,7 +35,7 @@ export async function getEmployees(
   filter: GetEmployeesFilter = {}
 ): Promise<GetEmployeesResponse> {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
     const shouldPaginate = typeof filter.page === 'number' && filter.page > 0;
     const page = shouldPaginate ? filter.page! : 1;
     const pageSize = filter.pageSize && filter.pageSize > 0 ? filter.pageSize : 25;
@@ -135,7 +130,7 @@ export async function getEmployees(
 
 export async function getEmployeeById(id: string): Promise<{ data: Employee | null; error: string | null }> {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
     const { data, error } = await client
       .from('employees')
       .select('*')
@@ -184,7 +179,7 @@ export interface EmployeeFormData {
 
 export async function createEmployee(formData: EmployeeFormData) {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
 
     // Check duplicate email
     const { data: existing } = await client
@@ -275,7 +270,7 @@ export async function createEmployee(formData: EmployeeFormData) {
 
 export async function updateEmployee(id: string, formData: EmployeeFormData) {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
 
     const authCheck = await requireAuthRole(client, ['admin', 'hr']);
     if (!authCheck.authorized) {
@@ -331,7 +326,7 @@ export async function updateEmployee(id: string, formData: EmployeeFormData) {
 
 export async function setEmployeeStatus(id: string, status: EmployeeStatus) {
   try {
-    const client = getClient() || (await createClient());
+    const client = await getActionClient();
 
     const authCheck = await requireAuthRole(client, ['admin', 'hr']);
     if (!authCheck.authorized) {

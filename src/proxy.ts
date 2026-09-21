@@ -1,15 +1,15 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import { EmployeeRole } from '@/types/database';
+import { NAVIGATION_ITEMS } from '@/lib/constants';
 
-// Route permissions definition (Role-Based Access Control)
-const RESTRICTED_ROUTES: Array<{ prefix: string; allowedRoles: EmployeeRole[] }> = [
-  { prefix: '/attendance-management', allowedRoles: ['hr', 'admin'] },
-  { prefix: '/odoo-sync', allowedRoles: ['hr', 'admin'] },
-  { prefix: '/settings', allowedRoles: ['admin', 'hr'] },
-  { prefix: '/employees', allowedRoles: ['hr', 'admin', 'management'] },
-  { prefix: '/approvals', allowedRoles: ['spv', 'kepala_divisi', 'hr', 'management', 'admin'] },
-];
+// Dynamically derive restricted routes from NAVIGATION_ITEMS (single source of truth)
+const ALL_ROLES_COUNT = 6;
+const RESTRICTED_ROUTES: Array<{ prefix: string; allowedRoles: EmployeeRole[] }> =
+  NAVIGATION_ITEMS.filter((item) => item.roles.length < ALL_ROLES_COUNT).map((item) => ({
+    prefix: item.href,
+    allowedRoles: item.roles,
+  }));
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({
@@ -58,19 +58,7 @@ export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
   // Protected paths requiring authentication
-  const isProtectedPath =
-    pathname.startsWith('/dashboard') ||
-    pathname.startsWith('/my-attendance') ||
-    pathname.startsWith('/clock-in') ||
-    pathname.startsWith('/requests') ||
-    pathname.startsWith('/overtime') ||
-    pathname.startsWith('/approvals') ||
-    pathname.startsWith('/attendance-management') ||
-    pathname.startsWith('/employees') ||
-    pathname.startsWith('/payroll') ||
-    pathname.startsWith('/odoo-sync') ||
-    pathname.startsWith('/notifications') ||
-    pathname.startsWith('/settings');
+  const isProtectedPath = NAVIGATION_ITEMS.some((item) => pathname.startsWith(item.href));
 
   const isDev = process.env.NODE_ENV === 'development';
   const hasDevBypass =

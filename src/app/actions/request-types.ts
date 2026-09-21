@@ -1,13 +1,13 @@
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
+import { getActionClient } from '@/lib/supabase/action-client';
 import { revalidatePath } from 'next/cache';
 import { RequestType, RequestCategory, GenderType, MaritalStatusType } from '@/types/database';
 import { requireAuthRole } from '@/lib/auth';
 
 export async function getRequestTypes(): Promise<{ data: RequestType[]; error: string | null }> {
   try {
-    const supabase = await createClient();
+    const supabase = await getActionClient();
     const { data, error } = await supabase
       .from('request_types')
       .select('*')
@@ -38,7 +38,7 @@ export async function updateRequestType(
   }
 ) {
   try {
-    const supabase = await createClient();
+    const supabase = await getActionClient();
     const authCheck = await requireAuthRole(supabase, ['admin', 'hr']);
     if (!authCheck.authorized) {
       return { success: false, error: authCheck.error };
@@ -72,7 +72,7 @@ export async function updateRequestType(
 
 export async function toggleRequestTypeStatus(id: string, is_active: boolean) {
   try {
-    const supabase = await createClient();
+    const supabase = await getActionClient();
     const authCheck = await requireAuthRole(supabase, ['admin', 'hr']);
     if (!authCheck.authorized) {
       return { success: false, error: authCheck.error };

@@ -189,6 +189,11 @@ export interface EmployeeContract {
   status_urgency?: 'critical' | 'warning' | 'safe' | 'permanent' | 'expired';
 }
 
+export interface ExpiringContractItem {
+  contract: EmployeeContract;
+  employee: Employee;
+}
+
 export interface EmployeePosition {
   id: string;
   employee_id: string;
@@ -444,3 +449,184 @@ export interface NotificationItem {
     role: EmployeeRole;
   } | null;
 }
+
+export interface GpsReviewItem {
+  id: string;
+  employee_id: string;
+  attendance_date: string;
+  clock_in: string | null;
+  clock_out: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  distance_meters?: number | null;
+  review_status?: AttendanceReviewStatus | string | null;
+  notes?: string | null;
+  device_info?: string | null;
+  is_mock_location?: boolean | null;
+  employee?: {
+    id: string;
+    full_name: string;
+    email: string;
+    role: string;
+    nik?: string | null;
+    division?: { name: string } | null;
+  } | null;
+  office?: {
+    name: string;
+    address?: string | null;
+    radius_meters?: number | null;
+  } | null;
+  location?: {
+    name: string;
+  } | null;
+  reviewer?: {
+    full_name: string;
+    email: string;
+  } | null;
+}
+
+export interface IzinTelatItem {
+  id: string;
+  employee_id?: string;
+  start_date: string;
+  request_date?: string;
+  start_time: string | null;
+  end_time: string | null;
+  total_days?: number | null;
+  late_minutes?: number | null;
+  reason: string;
+  notes?: string | null;
+  status: RequestStatus | string;
+  submitted_at: string;
+  decided_at?: string | null;
+  employee?: {
+    id?: string;
+    full_name: string;
+    email?: string;
+    role?: string;
+    division?: { name: string } | null;
+  } | null;
+  request_type?: { name: string; code: string } | null;
+  approvals?: Array<{
+    id?: string;
+    decision: ApprovalDecision | string;
+    note: string | null;
+    decided_at?: string | null;
+    approver?: { full_name: string } | null;
+  }>;
+}
+
+export interface LateAccumulationItem {
+  id: string;
+  employee_id: string;
+  year: number;
+  month: number;
+  total_late_count?: number;
+  late_count?: number;
+  excused_count?: number;
+  unexcused_count?: number;
+  total_late_minutes: number;
+  excused_late_minutes?: number;
+  penalty_multiplier?: number;
+  penalty_amount?: number;
+  deduction_amount?: number;
+  employee?: {
+    id: string;
+    full_name: string;
+    email: string;
+    role: string;
+    nik?: string | null;
+    division_id?: string | null;
+    division?: { name: string } | null;
+  } | null;
+}
+
+export interface AttendanceImportBatchItem {
+  id: string;
+  file_name: string;
+  period_start?: string;
+  period_end?: string;
+  total_rows?: number;
+  matched_count?: number;
+  unmatched_count?: number;
+  duplicate_count?: number;
+  inserted_count?: number;
+  skipped_count?: number;
+  uploaded_at?: string;
+  created_at: string;
+  uploader?: {
+    full_name: string;
+    email: string;
+  } | null;
+  uploaded_by_user?: {
+    full_name: string;
+    email?: string;
+  } | null;
+}
+
+export interface AttendanceCorrectionItem {
+  id: string;
+  attendance_id: string;
+  previous_clock_in: string | null;
+  previous_clock_out: string | null;
+  new_clock_in: string | null;
+  new_clock_out: string | null;
+  correction_reason?: string;
+  reason?: string;
+  created_at: string;
+  corrector?: {
+    full_name: string;
+    email: string;
+    role: string;
+  } | null;
+  modifier?: {
+    full_name: string;
+    email?: string;
+    role?: string;
+  } | null;
+}
+
+export interface TodayGpsAttendanceState {
+  id?: string;
+  clock_in?: string | null;
+  clock_out?: string | null;
+  attendance_date?: string;
+  review_status?: string | null;
+  submitted_latitude?: number | null;
+  submitted_longitude?: number | null;
+  gps_accuracy_meters?: number | null;
+  distance_to_office_meters?: number | null;
+  late_reason?: string | null;
+  late_minutes?: number | null;
+  work_minutes?: number | null;
+  created_at?: string;
+  [key: string]: unknown;
+}
+
+export interface IzinTelatCheckResult {
+  canApply: boolean;
+  scheduledStartTime: string;
+  message: string;
+  employee?: {
+    id: string;
+    full_name: string;
+    email: string;
+    role?: string;
+    work_schedule_id?: string | null;
+  } | null;
+  existingRequest?: unknown;
+  currentTotalMinutes?: number;
+  scheduledTotalMinutes?: number;
+  allowed?: boolean;
+}
+
+export interface CurrentGpsEmployee {
+  id: string;
+  full_name: string;
+  email: string;
+  role?: string;
+  work_schedule_id?: string | null;
+  [key: string]: unknown;
+}
+
+
