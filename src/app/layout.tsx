@@ -46,8 +46,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="id" className={`${plusJakarta.variable} ${jetbrainsMono.variable} dark h-full`}>
-      <body className="min-h-full flex flex-col font-sans bg-[#0b0f19] text-slate-100 antialiased selection:bg-blue-600 selection:text-white">
+    <html
+      lang="id"
+      className={`${plusJakarta.variable} ${jetbrainsMono.variable} dark h-full`}
+      suppressHydrationWarning
+    >
+      <body
+        suppressHydrationWarning
+        className="min-h-full flex flex-col font-sans bg-[#0b0f19] text-slate-100 antialiased selection:bg-blue-600 selection:text-white"
+      >
         <PwaRegister />
         {children}
       </body>
